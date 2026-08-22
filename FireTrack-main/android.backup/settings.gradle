@@ -1,0 +1,10 @@
+include ':app'
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+
+def capAndroidDir = new File(rootDir, '../node_modules/@capacitor/android/capacitor')
+if (!capAndroidDir.exists()) {
+    throw new GradleException("\n\n========================================================================\n[ERRORE] La cartella node_modules/@capacitor/android non esiste!\n\nPrima di eseguire ./gradlew assembleDebug, devi installare i pacchetti npm:\n\n  1. cd ~/coding/FireHealth\n  2. npm install\n  3. cd android\n  4. ./gradlew assembleDebug\n========================================================================\n")
+}
+
+apply from: 'capacitor.settings.gradle'

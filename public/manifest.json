@@ -1,0 +1,17 @@
+{
+  "name": "FireTrack",
+  "short_name": "FireTrack",
+  "description": "Personal Health Tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#d0d5d8",
+  "theme_color": "#1d8998",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

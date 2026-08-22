@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.75"
+        android:scaleY="0.75"
+        android:translateX="13.5"
+        android:translateY="13.5">
+        <!-- Top Left Blood Drop -->
+        <path
+            android:fillColor="#D94326"
+            android:pathData="M32,20 C32,20 14,45 14,58 C14,68 22,76 32,76 C42,76 50,68 50,58 C50,45 32,20 32,20 Z" />
+        <!-- Bottom Right Blood Drop (Slightly larger, overlapping) -->
+        <path
+            android:fillColor="#C03217"
+            android:pathData="M62,32 C62,32 40,62 40,76 C40,88 50,96 62,96 C74,96 84,88 84,76 C84,62 62,32 62,32 Z" />
+    </group>
+</vector>

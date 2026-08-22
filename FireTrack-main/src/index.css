@@ -1,0 +1,377 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Smooth transition for theme switching */
+html, body {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark, body.dark {
+  background-color: #121418;
+  color: #f3f4f6;
+  color-scheme: dark;
+}
+
+/* ========================================================================= */
+/* PDF EXPORT & PRINT WHITE THEME - CLINICAL HIGH-CONTRAST SPECIFICATION     */
+/* Ensures all PDF exports and printouts have a pure white background,       */
+/* black numbers and text, and borders with the reference category color.    */
+/* ========================================================================= */
+
+.pdf-export-mode,
+.pdf-export-mode body,
+.pdf-export-mode #printable-report-area,
+.pdf-export-mode #printable-bloodtests-area,
+.pdf-export-mode #printable-history-area,
+.pdf-export-mode #printable-classic-calendar-area,
+.pdf-export-mode [data-pdf-section="true"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #000000 !important;
+  color-scheme: light !important;
+}
+
+/* Force container boxes to pure white */
+.pdf-export-mode [data-pdf-section="true"],
+.pdf-export-mode [data-pdf-section="true"] div[class*="bg-"],
+.pdf-export-mode [data-pdf-section="true"] section[class*="bg-"] {
+  box-shadow: none !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .bg-\[\#131f2d\],
+.pdf-export-mode [data-pdf-section="true"] .bg-\[\#1a1d24\],
+.pdf-export-mode [data-pdf-section="true"] .bg-\[\#121418\],
+.pdf-export-mode [data-pdf-section="true"] .bg-stone-900,
+.pdf-export-mode [data-pdf-section="true"] .bg-stone-800 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #000000 !important;
+}
+
+/* Header & Banner cards */
+.pdf-export-mode [data-pdf-section="true"] div[class*="from-\[\#1c2938\]"],
+.pdf-export-mode [data-pdf-section="true"] div[class*="from-\[\#162230\]"],
+.pdf-export-mode [data-pdf-section="true"] div[class*="bg-gradient-to-"] {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #000000 !important;
+}
+
+/* Neutral sub-boxes inside cards */
+.pdf-export-mode [data-pdf-section="true"] .bg-black\/20,
+.pdf-export-mode [data-pdf-section="true"] .bg-black\/30,
+.pdf-export-mode [data-pdf-section="true"] .bg-black\/40,
+.pdf-export-mode [data-pdf-section="true"] .bg-black\/50,
+.pdf-export-mode [data-pdf-section="true"] .bg-black\/60,
+.pdf-export-mode [data-pdf-section="true"] .bg-stone-950,
+.pdf-export-mode [data-pdf-section="true"] .bg-stone-900\/50 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #000000 !important;
+}
+
+/* Border overrides - standard dividers */
+.pdf-export-mode [data-pdf-section="true"] *[class*="border-white\/"],
+.pdf-export-mode [data-pdf-section="true"] *[class*="border-stone-800"],
+.pdf-export-mode [data-pdf-section="true"] *[class*="border-stone-700"] {
+  border-color: #cbd5e1 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] *[class*="divide-white\/"],
+.pdf-export-mode [data-pdf-section="true"] *[class*="divide-stone-800"] {
+  border-color: #e2e8f0 !important;
+}
+
+/* Text overrides in PDF mode: ALL text and numbers are black */
+.pdf-export-mode [data-pdf-section="true"] .text-white,
+.pdf-export-mode [data-pdf-section="true"] .text-stone-100,
+.pdf-export-mode [data-pdf-section="true"] .text-stone-200,
+.pdf-export-mode [data-pdf-section="true"] .text-stone-300,
+.pdf-export-mode [data-pdf-section="true"] .text-stone-400 {
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .text-stone-500,
+.pdf-export-mode [data-pdf-section="true"] .text-stone-600 {
+  color: #334155 !important;
+}
+
+/* Table overrides in PDF mode */
+.pdf-export-mode [data-pdf-section="true"] table {
+  background-color: #ffffff !important;
+  border-collapse: collapse !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] table thead tr,
+.pdf-export-mode [data-pdf-section="true"] table thead th {
+  background-color: #f1f5f9 !important;
+  color: #000000 !important;
+  border-color: #cbd5e1 !important;
+  font-weight: 700 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] table tbody tr {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] table tbody tr:nth-child(even) {
+  background-color: #f8fafc !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] table td,
+.pdf-export-mode [data-pdf-section="true"] table th {
+  border-color: #cbd5e1 !important;
+  color: #000000 !important;
+}
+
+/* ========================================================================= */
+/* SQUARES, CHIPS & NUMBERS: WHITE BG + BLACK TEXT + CATEGORY-COLORED BORDER */
+/* ========================================================================= */
+
+/* Category 1: Glicemia Target / Ideale (Emerald / Green) */
+.pdf-export-mode [data-pdf-section="true"] .bg-emerald-950\/60,
+.pdf-export-mode [data-pdf-section="true"] .bg-emerald-950\/50,
+.pdf-export-mode [data-pdf-section="true"] .bg-emerald-950\/40,
+.pdf-export-mode [data-pdf-section="true"] .bg-emerald-900,
+.pdf-export-mode [data-pdf-section="true"] .bg-emerald-800,
+.pdf-export-mode [data-pdf-section="true"] .bg-emerald-700,
+.pdf-export-mode [data-pdf-section="true"] .bg-emerald-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-emerald-500,
+.pdf-export-mode [data-pdf-section="true"] .bg-green-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-green-500 {
+  background-color: #ffffff !important;
+  border: 2px solid #16a34a !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .border-emerald-500\/40,
+.pdf-export-mode [data-pdf-section="true"] .border-emerald-400,
+.pdf-export-mode [data-pdf-section="true"] .border-emerald-500,
+.pdf-export-mode [data-pdf-section="true"] .border-emerald-600 {
+  border-color: #16a34a !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .text-emerald-300,
+.pdf-export-mode [data-pdf-section="true"] .text-emerald-400,
+.pdf-export-mode [data-pdf-section="true"] .text-emerald-500,
+.pdf-export-mode [data-pdf-section="true"] .text-emerald-600 {
+  color: #000000 !important;
+}
+
+/* Category 2: Glicemia Fuori Target / Iper / Battiti (Rose / Red) */
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-950\/80,
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-950\/60,
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-950\/50,
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-950\/40,
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-900,
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-800,
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-700,
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-rose-500,
+.pdf-export-mode [data-pdf-section="true"] .bg-red-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-red-500 {
+  background-color: #ffffff !important;
+  border: 2px solid #dc2626 !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .border-rose-500\/40,
+.pdf-export-mode [data-pdf-section="true"] .border-rose-400,
+.pdf-export-mode [data-pdf-section="true"] .border-rose-500,
+.pdf-export-mode [data-pdf-section="true"] .border-rose-600 {
+  border-color: #dc2626 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .text-rose-200,
+.pdf-export-mode [data-pdf-section="true"] .text-rose-300,
+.pdf-export-mode [data-pdf-section="true"] .text-rose-400,
+.pdf-export-mode [data-pdf-section="true"] .text-rose-500 {
+  color: #000000 !important;
+}
+
+/* Category 3: Pressione Arteriosa / Ipo (Sky / Blue) */
+.pdf-export-mode [data-pdf-section="true"] .bg-sky-950\/60,
+.pdf-export-mode [data-pdf-section="true"] .bg-sky-950\/50,
+.pdf-export-mode [data-pdf-section="true"] .bg-sky-950\/40,
+.pdf-export-mode [data-pdf-section="true"] .bg-sky-900,
+.pdf-export-mode [data-pdf-section="true"] .bg-sky-800,
+.pdf-export-mode [data-pdf-section="true"] .bg-sky-700,
+.pdf-export-mode [data-pdf-section="true"] .bg-sky-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-sky-500,
+.pdf-export-mode [data-pdf-section="true"] .bg-blue-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-blue-500 {
+  background-color: #ffffff !important;
+  border: 2px solid #0284c7 !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .border-sky-500\/40,
+.pdf-export-mode [data-pdf-section="true"] .border-sky-400,
+.pdf-export-mode [data-pdf-section="true"] .border-sky-500,
+.pdf-export-mode [data-pdf-section="true"] .border-sky-600 {
+  border-color: #0284c7 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .text-sky-200,
+.pdf-export-mode [data-pdf-section="true"] .text-sky-300,
+.pdf-export-mode [data-pdf-section="true"] .text-sky-400,
+.pdf-export-mode [data-pdf-section="true"] .text-sky-500 {
+  color: #000000 !important;
+}
+
+/* Category 4: Carboidrati / Pasti / Peso (Amber / Orange) */
+.pdf-export-mode [data-pdf-section="true"] .bg-amber-950\/60,
+.pdf-export-mode [data-pdf-section="true"] .bg-amber-950\/50,
+.pdf-export-mode [data-pdf-section="true"] .bg-amber-950\/40,
+.pdf-export-mode [data-pdf-section="true"] .bg-amber-900,
+.pdf-export-mode [data-pdf-section="true"] .bg-amber-800,
+.pdf-export-mode [data-pdf-section="true"] .bg-amber-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-amber-500 {
+  background-color: #ffffff !important;
+  border: 2px solid #d97706 !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .border-amber-500\/40,
+.pdf-export-mode [data-pdf-section="true"] .border-amber-400,
+.pdf-export-mode [data-pdf-section="true"] .border-amber-500 {
+  border-color: #d97706 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .text-amber-200,
+.pdf-export-mode [data-pdf-section="true"] .text-amber-300,
+.pdf-export-mode [data-pdf-section="true"] .text-amber-400 {
+  color: #000000 !important;
+}
+
+/* Category 5: Farmaci / Insulina / Notte (Indigo / Purple) */
+.pdf-export-mode [data-pdf-section="true"] .bg-indigo-950\/60,
+.pdf-export-mode [data-pdf-section="true"] .bg-indigo-950\/50,
+.pdf-export-mode [data-pdf-section="true"] .bg-indigo-900,
+.pdf-export-mode [data-pdf-section="true"] .bg-indigo-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-indigo-500,
+.pdf-export-mode [data-pdf-section="true"] .bg-purple-950\/60,
+.pdf-export-mode [data-pdf-section="true"] .bg-purple-600 {
+  background-color: #ffffff !important;
+  border: 2px solid #4f46e5 !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .border-indigo-500\/40,
+.pdf-export-mode [data-pdf-section="true"] .border-indigo-400,
+.pdf-export-mode [data-pdf-section="true"] .border-indigo-500 {
+  border-color: #4f46e5 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .text-indigo-200,
+.pdf-export-mode [data-pdf-section="true"] .text-indigo-300 {
+  color: #000000 !important;
+}
+
+/* Category 6: Digiuno / Attività (Teal / Cyan) */
+.pdf-export-mode [data-pdf-section="true"] .bg-teal-950\/60,
+.pdf-export-mode [data-pdf-section="true"] .bg-teal-950\/50,
+.pdf-export-mode [data-pdf-section="true"] .bg-teal-900,
+.pdf-export-mode [data-pdf-section="true"] .bg-teal-600,
+.pdf-export-mode [data-pdf-section="true"] .bg-teal-500 {
+  background-color: #ffffff !important;
+  border: 2px solid #0d9488 !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .border-teal-500\/40,
+.pdf-export-mode [data-pdf-section="true"] .border-teal-400,
+.pdf-export-mode [data-pdf-section="true"] .border-teal-500 {
+  border-color: #0d9488 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] .text-teal-300,
+.pdf-export-mode [data-pdf-section="true"] .text-teal-400 {
+  color: #000000 !important;
+}
+
+/* SVG charts in PDF mode */
+.pdf-export-mode [data-pdf-section="true"] svg text {
+  fill: #000000 !important;
+}
+
+.pdf-export-mode [data-pdf-section="true"] svg line[stroke*="#"] {
+  opacity: 0.7 !important;
+}
+
+@media print {
+  /* Hide all elements on the page except the printable report */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Make printable report area and its children visible */
+  #printable-report-area,
+  #printable-report-area *,
+  #printable-bloodtests-area,
+  #printable-bloodtests-area *,
+  #printable-history-area,
+  #printable-history-area *,
+  #printable-classic-calendar-area,
+  #printable-classic-calendar-area *,
+  [data-pdf-section="true"],
+  [data-pdf-section="true"] * {
+    visibility: visible !important;
+  }
+
+  /* Position printable report cleanly at top of page */
+  #printable-report-area,
+  #printable-bloodtests-area,
+  #printable-history-area,
+  #printable-classic-calendar-area,
+  [data-pdf-section="true"] {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Ensure background colors and borders are preserved during printing */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide interactive elements, buttons, and navigation */
+  button,
+  input,
+  select,
+  .no-print,
+  nav,
+  header {
+    display: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm 10mm 10mm;
+  }
+
+  /* Prevent table cell breaking awkwardly across pages */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  td, th {
+    word-break: normal !important;
+  }
+}
+

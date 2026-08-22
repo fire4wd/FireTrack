@@ -1,0 +1,7 @@
+{
+  "name": "FireTrack",
+  "description": "Personal health tracking application: glucose, blood pressure, medications.",
+  "version": "1.0.1",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

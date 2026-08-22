@@ -1,0 +1,23 @@
+{
+  "appId": "com.fire4wd.ontrack",
+  "appName": "FireTrack",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "allowNavigation": ["*"]
+  },
+  "plugins": {
+    "CapacitorSQLite": {
+      "iosIsEncryption": false,
+      "androidIsEncryption": false,
+      "androidBiometric": {
+        "biometricAuth": false
+      }
+    },
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
