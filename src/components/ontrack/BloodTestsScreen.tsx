@@ -536,15 +536,22 @@ export const BloodTestsScreen: React.FC<BloodTestsScreenProps> = ({
                                 className="p-1.5 text-center font-bold border-r border-stone-200 dark:border-stone-700 last:border-r-0 bg-white dark:bg-[#1a1d24]"
                               >
                                 <div
-                                  className={`inline-flex items-center justify-center min-w-[3.2rem] px-2 py-0.5 rounded text-[11.5px] font-bold border-2 transition-colors ${
+                                  data-blood-status={evalRes.isGreen ? 'normal' : 'out'}
+                                  className={`blood-badge inline-flex items-center justify-center min-w-[3.4rem] px-2 py-0.5 rounded-md text-[12px] font-bold border transition-colors shadow-2xs ${
                                     evalRes.isGreen
-                                      ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 border-[#16a34a] dark:border-emerald-500 blood-badge-normal'
-                                      : 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 border-[#dc2626] dark:border-rose-500 blood-badge-out'
+                                      ? 'bg-emerald-50/80 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/50 blood-badge-normal'
+                                      : 'bg-rose-50/80 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-500/50 blood-badge-out'
                                   }`}
                                 >
-                                  <span className="text-stone-900 dark:text-stone-100 font-bold">{valDisplay}</span>
-                                  {evalRes.status === 'high' && <span className="text-[10px] ml-0.5 font-black text-stone-900 dark:text-stone-100">↑</span>}
-                                  {evalRes.status === 'low' && <span className="text-[10px] ml-0.5 font-black text-stone-900 dark:text-stone-100">↓</span>}
+                                  <span className={`blood-val-num font-mono font-bold ${evalRes.isGreen ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                                    {valDisplay}
+                                  </span>
+                                  {evalRes.status === 'high' && (
+                                    <span className="blood-arrow text-[11px] ml-0.5 font-black text-rose-700 dark:text-rose-400">↑</span>
+                                  )}
+                                  {evalRes.status === 'low' && (
+                                    <span className="blood-arrow text-[11px] ml-0.5 font-black text-rose-700 dark:text-rose-400">↓</span>
+                                  )}
                                 </div>
                               </td>
                             );
@@ -586,12 +593,12 @@ export const BloodTestsScreen: React.FC<BloodTestsScreenProps> = ({
                 <div className="flex flex-wrap items-center gap-4">
                   <span className="font-bold text-stone-800 dark:text-stone-200 blood-legend-title">Legenda:</span>
                   <div className="flex items-center space-x-1.5">
-                    <span className="w-3.5 h-3.5 rounded bg-white dark:bg-stone-900 border-2 border-[#16a34a] dark:border-emerald-500 inline-block blood-legend-green-box"></span>
-                    <span className="font-bold text-stone-800 dark:text-stone-200 blood-legend-green-text">Nel Range di Riferimento</span>
+                    <span className="w-3.5 h-3.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-400 dark:border-emerald-500 inline-block blood-legend-green-box"></span>
+                    <span className="font-bold text-emerald-700 dark:text-emerald-400 blood-legend-green-text">Nel Range di Riferimento (Verde)</span>
                   </div>
                   <div className="flex items-center space-x-1.5">
-                    <span className="w-3.5 h-3.5 rounded bg-white dark:bg-stone-900 border-2 border-[#dc2626] dark:border-rose-500 inline-block blood-legend-red-box"></span>
-                    <span className="font-bold text-stone-800 dark:text-stone-200 blood-legend-red-text">Fuori Range (↑ Elevato / ↓ Basso)</span>
+                    <span className="w-3.5 h-3.5 rounded-md bg-rose-50 dark:bg-rose-950/60 border border-rose-400 dark:border-rose-500 inline-block blood-legend-red-box"></span>
+                    <span className="font-bold text-rose-700 dark:text-rose-400 blood-legend-red-text">Fuori Range (Rosso: ↑ Elevato / ↓ Basso)</span>
                   </div>
                 </div>
 

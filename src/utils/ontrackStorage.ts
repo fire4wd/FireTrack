@@ -1003,6 +1003,246 @@ export const saveMedications = (meds: MedicationItem[]): void => {
   }
 };
 
+/**
+ * Export Medications to CSV file
+ */
+export const downloadMedicationsCSV = async (
+  meds: MedicationItem[],
+  patientName: string = 'Utente'
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const cleanPatient = (patientName || 'Utente').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const headers = ['Nome Farmaco', 'Dosaggio', 'Orario / Frequenza', 'Istruzioni', 'Attivo (Si/No)'];
+
+    const rows = meds.map(m => [
+      `"${(m.name || '').replace(/"/g, '""')}"`,
+      `"${(m.dosage || '').replace(/"/g, '""')}"`,
+      `"${(m.schedule || '').replace(/"/g, '""')}"`,
+      `"${(m.instructions || '').replace(/"/g, '""')}"`,
+      `"${m.active !== false ? 'Sì' : 'No'}"`
+    ]);
+
+    const csvContent = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n');
+    const filename = `Elenco_Farmaci_${cleanPatient}_${new Date().toISOString().slice(0, 10)}.csv`;
+    return await triggerCsvDownload(csvContent, filename);
+  } catch (err: any) {
+    console.error('Error exporting medications CSV:', err);
+    return { success: false, message: `Errore: ${err?.message || 'Esportazione fallita'}` };
+  }
+};
+
+/**
+ * Export Medications to JSON file
+ */
+export const downloadMedicationsJSON = async (
+  meds: MedicationItem[],
+  patientName: string = 'Utente'
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const cleanPatient = (patientName || 'Utente').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const jsonStr = JSON.stringify(meds, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+    const filename = `Farmaci_${cleanPatient}_${new Date().toISOString().slice(0, 10)}.json`;
+
+    const res = await saveOrShareFile({
+      filename,
+      blob,
+      mimeType: 'application/json',
+      dialogTitle: `Salva o Condividi ${filename}`
+    });
+
+    return {
+      success: res.success,
+      message: res.message || 'File JSON farmaci salvato con successo!'
+    };
+  } catch (err: any) {
+    console.error('Error exporting medications JSON:', err);
+    return { success: false, message: `Errore: ${err?.message || 'Esportazione fallita'}` };
+  }
+};
+
+/**
+ * Download CSV template for medications import
+ */
+export const downloadMedicationCsvTemplate = (): void => {
+  const headers = ['Nome Farmaco', 'Dosaggio', 'Orario / Frequenza', 'Istruzioni', 'Attivo (Si/No)'];
+  const sampleRow1 = ['Metformina', '500 mg', 'Colazione, Cena', 'A stomaco pieno', 'Sì'];
+  const sampleRow2 = ['Cardioaspirina', '100 mg', 'Pranzo', 'Con abbondante acqua', 'Sì'];
+  const sampleRow3 = ['Omega 3', '1 cps', 'Mattina', 'Durante il pasto', 'Sì'];
+
+  const csvContent = [
+    headers.join(';'),
+    sampleRow1.join(';'),
+    sampleRow2.join(';'),
+    sampleRow3.join(';')
+  ].join('\r\n');
+
+  triggerCsvDownload(csvContent, `Template_Import_Farmaci.csv`);
+};
+
+/**
+ * Download CSV templates for Fasting, Glucose, Pressure, Weight and Nutrition
+ */
+export const downloadFastingCsvTemplate = (): void => {
+  const headers = ['Data', 'Inizio', 'Fine (Rottura)', 'Durata (Ore)', 'Protocollo', 'Stadio Metabolico', 'Glicemia Inizio', 'Glicemia Fine', 'Note / Dettagli'];
+  const sampleRow1 = ['2026-08-15', '20:30', '13:00', '16.5', '16:8', 'Chetosi (16-22h)', '128', '84', 'Rottura digiuno con insalata di pollo e noci. Ottima energia!'];
+  const sampleRow2 = ['2026-08-14', '20:00', '10:30', '14.5', '14:10', 'Lipolisi (12-16h)', '132', '88', 'Protocollo 14:10 (Normale) completato con regolarità.'];
+  const sampleRow3 = ['2026-08-13', '20:00', '14:30', '18.5', '18:6', 'Chetosi (16-22h)', '138', '82', 'Protocollo 18:6 completato. Glicemia stabile.'];
+  const sampleRow4 = ['2026-08-12', '19:30', '16:00', '20.5', '20:4', 'Autofagia (22h+)', '140', '78', 'Mercoledì: Digiuno 20:4 del Guerriero.'];
+
+  const csvContent = [headers.join(';'), sampleRow1.join(';'), sampleRow2.join(';'), sampleRow3.join(';'), sampleRow4.join(';')].join('\r\n');
+  triggerCsvDownload(csvContent, `Template_Import_Digiuno.csv`);
+};
+
+export const downloadGlucoseCsvTemplate = (): void => {
+  const headers = ['Tipo di elemento', 'Data e ora', 'Valore', 'Dose consigliata', 'Unità', 'Manuale', 'Valore aggiuntivo', 'Note', 'Fonte di dati'];
+  const sampleRow1 = ['I risultati glicemici', '14 Ago 2026, 00:20', '180', '', 'mg/dL', 'Sì', 'Post-pasto', 'Dolce compleanno', ''];
+  const sampleRow2 = ['I risultati glicemici', '13 Ago 2026, 20:22', '159', '', 'mg/dL', 'No', 'Pre-pasto', '', ''];
+  const sampleRow3 = ['I risultati glicemici', '12 Ago 2026, 08:12', '170', '', 'mg/dL', 'No', 'Pre-pasto', '', ''];
+
+  const csvContent = [headers.join('\t'), sampleRow1.join('\t'), sampleRow2.join('\t'), sampleRow3.join('\t')].join('\r\n');
+  triggerCsvDownload(csvContent, `Template_Import_Glicemie.csv`);
+};
+
+export const downloadPressureCsvTemplate = (): void => {
+  const headers = ['Data', 'Ora', 'Tipo', 'Sistolica/Diastolica - Battiti', 'Fase Pasto', 'Pasto', 'Note'];
+  const sampleRow1 = ['2026-08-13', '07:27', 'Pressione', '118/76 - 70 bpm', 'Pre pasto', 'Colazione', 'Misurazione mattutina'];
+  const sampleRow2 = ['2026-08-13', '19:27', 'Pressione', '122/80 - 74 bpm', 'Pre pasto', 'Cena', 'Dopo lavoro'];
+
+  const csvContent = [headers.join(';'), sampleRow1.join(';'), sampleRow2.join(';')].join('\r\n');
+  triggerCsvDownload(csvContent, `Template_Import_Pressione.csv`);
+};
+
+export const downloadWeightCsvTemplate = (): void => {
+  const headers = ['Data', 'Ora', 'Tipo', 'Peso (kg)', 'Quanto conforme siete stati?'];
+  const sampleRow1 = ['2026-08-01', '12:00', 'Peso', '96,5', 'Abbastanza buono'];
+  const sampleRow2 = ['2026-06-07', '12:00', 'Peso', '98,5', 'Abbastanza buono'];
+
+  const csvContent = [headers.join(';'), sampleRow1.join(';'), sampleRow2.join(';')].join('\r\n');
+  triggerCsvDownload(csvContent, `Template_Import_Peso.csv`);
+};
+
+export const downloadNutritionCsvTemplate = (): void => {
+  const headers = ['Data', 'Ora', 'Tipo', 'Alimenti (Cal)', '% GDA', 'Grassi (g)', 'Proteine (g)', 'Carboidrati (g)', 'Esercizio (Cal)', 'Netto (Cal)', 'Note'];
+  const sampleRow1 = ['2026-08-16', '12:00', 'Alimenti', '421', '23', '18.48', '27.56', '37.25', '-', '-', 'Pranzo equilibrato'];
+  const sampleRow2 = ['2026-08-15', '12:00', 'Alimenti', '471', '26', '24.26', '25.68', '37.84', '-', '-', 'Cena proteica'];
+
+  const csvContent = [headers.join(';'), sampleRow1.join(';'), sampleRow2.join(';')].join('\r\n');
+  triggerCsvDownload(csvContent, `Template_Import_Nutrizione.csv`);
+};
+
+/**
+ * Parse Medications CSV text into MedicationItem[]
+ */
+export const parseMedicationsCSV = (csvText: string): { items: MedicationItem[]; count: number } => {
+  if (!csvText || !csvText.trim()) return { items: [], count: 0 };
+
+  const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return { items: [], count: 0 };
+
+  const firstLine = lines[0];
+  let delimiter = ';';
+  if (firstLine.includes(';') && !firstLine.includes('\t')) {
+    delimiter = ';';
+  } else if (firstLine.includes(',') && !firstLine.includes(';')) {
+    delimiter = ',';
+  } else if (firstLine.includes('\t')) {
+    delimiter = '\t';
+  }
+
+  let startIdx = 0;
+  const lowerFirst = firstLine.toLowerCase();
+  if (lowerFirst.includes('nome') || lowerFirst.includes('name') || lowerFirst.includes('dosaggio') || lowerFirst.includes('dosage')) {
+    startIdx = 1;
+  }
+
+  const items: MedicationItem[] = [];
+
+  for (let i = startIdx; i < lines.length; i++) {
+    const rawLine = lines[i];
+    if (!rawLine) continue;
+
+    const cells: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+
+    for (let c = 0; c < rawLine.length; c++) {
+      const char = rawLine[c];
+      if (char === '"') {
+        if (inQuotes && rawLine[c + 1] === '"') {
+          cur += '"';
+          c++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === delimiter && !inQuotes) {
+        cells.push(cur.trim());
+        cur = '';
+      } else {
+        cur += char;
+      }
+    }
+    cells.push(cur.trim());
+
+    const name = (cells[0] || '').replace(/^"|"$/g, '').trim();
+    if (!name) continue;
+
+    const dosage = (cells[1] || '').replace(/^"|"$/g, '').trim();
+    const schedule = (cells[2] || '').replace(/^"|"$/g, '').trim();
+    const instructions = (cells[3] || '').replace(/^"|"$/g, '').trim();
+    const activeStr = (cells[4] || '').replace(/^"|"$/g, '').trim().toLowerCase();
+    const active = !(activeStr === 'no' || activeStr === 'false' || activeStr === '0' || activeStr === 'disattivo' || activeStr === 'disattivato');
+
+    items.push({
+      id: `med_${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${i}`,
+      name,
+      dosage,
+      schedule,
+      instructions,
+      active
+    });
+  }
+
+  return { items, count: items.length };
+};
+
+/**
+ * Parse Medications JSON text into MedicationItem[]
+ */
+export const parseMedicationsJSON = (jsonText: string): { items: MedicationItem[]; count: number } => {
+  try {
+    const parsed = JSON.parse(jsonText);
+    let list: any[] = [];
+    if (Array.isArray(parsed)) {
+      list = parsed;
+    } else if (parsed && typeof parsed === 'object') {
+      if (Array.isArray(parsed.medications)) {
+        list = parsed.medications;
+      } else if (Array.isArray(parsed.items)) {
+        list = parsed.items;
+      }
+    }
+
+    const items: MedicationItem[] = [];
+    list.forEach((m, idx) => {
+      if (m && typeof m === 'object' && (m.name || m.nome)) {
+        items.push({
+          id: m.id || `med_${Date.now()}_${idx}`,
+          name: String(m.name || m.nome || '').trim(),
+          dosage: String(m.dosage || m.dosaggio || '').trim(),
+          schedule: String(m.schedule || m.orario || m.frequenza || '').trim(),
+          instructions: String(m.instructions || m.istruzioni || m.note || '').trim(),
+          active: m.active !== false && m.attivo !== false
+        });
+      }
+    });
+
+    return { items, count: items.length };
+  } catch (e) {
+    return { items: [], count: 0 };
+  }
+};
+
 export const getDefaultActiveFasting = (): ActiveFastingSession => {
   // Default to a realistic active fast started 14 hours ago
   const now = new Date();

@@ -576,7 +576,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                   Iniziato il: <strong className="text-teal-200 font-mono">{activeFastStartFormatted}</strong> alle <strong className="text-teal-200 font-mono">{activeFastStartTime}</strong>
                 </div>
                 <div className="text-xs text-stone-300">
-                  In corso da: <strong className="text-amber-300 font-mono text-sm">{activeFastElapsedHours.toFixed(1).replace('.', ',')} ore</strong> • Protocollo <strong className="text-white font-mono">{activeFast.protocol || '16:8'}</strong>
+                  In corso da: <strong className="text-amber-300 font-mono text-sm">{activeFastElapsedHours.toFixed(1).replace('.', ',')} ore</strong> • Split <strong className="text-white font-mono">{activeFast.protocol || '16:8'}</strong>
                 </div>
               </div>
 
@@ -822,11 +822,11 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                     </div>
                   </div>
 
-                  {/* 2. Protocollo e Obiettivo */}
+                  {/* 2. Split e Obiettivo */}
                   <div className="bg-stone-50 dark:bg-stone-800/60 p-3 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2">
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <span className="text-[10px] text-stone-500 dark:text-stone-400 block mb-0.5 font-medium">Protocollo Digiuno</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 block mb-0.5 font-medium">Split Digiuno</span>
                         <select
                           value={block.fastingProtocol || '16:8'}
                           onChange={(e) => {

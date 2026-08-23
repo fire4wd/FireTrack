@@ -631,7 +631,7 @@ export const downloadFastingCSV = (
   const cleanPatient = (patientName || 'Utente').replace(/[^a-zA-Z0-9_-]/g, '_');
   const cleanPeriod = periodLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-  const headers = ['Data', 'Inizio', 'Fine (Rottura)', 'Durata (Ore)', 'Protocollo', 'Stadio Metabolico', 'Glicemia Inizio', 'Glicemia Fine', 'Note / Dettagli'];
+  const headers = ['Data', 'Inizio', 'Fine (Rottura)', 'Durata (Ore)', 'Split', 'Stadio Metabolico', 'Glicemia Inizio', 'Glicemia Fine', 'Note / Dettagli'];
 
   const rows = sessions.map(s => [
     `"${s.date || ''}"`,

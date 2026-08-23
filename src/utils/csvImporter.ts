@@ -47,6 +47,22 @@ export interface ParsedCsvRow {
   categoryId: string;
   categoryName: string;
   timestamp: number;
+  // Fasting fields
+  fastingStartDate?: string;
+  fastingStartTime?: string;
+  fastingEndDate?: string;
+  fastingEndTime?: string;
+  fastingProtocol?: string;
+  fastingTargetHours?: number;
+  fastingStartGlucose?: string | number;
+  fastingEndGlucose?: string | number;
+  fastingIsInProgress?: boolean;
+  // Medication fields
+  medicationName?: string;
+  medicationDosage?: string;
+  medicationSchedule?: string;
+  medicationInstructions?: string;
+  medicationActive?: boolean;
   isValid: boolean;
   error?: string;
 }
@@ -56,7 +72,7 @@ export interface CsvParseResult {
   validRows: ParsedCsvRow[];
   invalidRows: { rowNumber: number; raw: string; error: string }[];
   dateRange: { start: string; end: string } | null;
-  detectedFormat?: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'generic';
+  detectedFormat?: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'fasting' | 'medication' | 'generic';
   targetSubTypes: string[];
   categoryLabel: string;
 }
@@ -238,7 +254,267 @@ export function parseHealthCsv(
   const headerLine = lines[0].join(' ').toLowerCase();
 
   // =========================================================================
-  // 1. DETECT NUTRITION SUMMARY TABLE FORMAT
+  // 1. DETECT FASTING / DIGIUNO FORMAT
+  // Header: Data, Inizio, Fine (Rottura), Durata (Ore), Protocollo, Stadio Metabolico, Glicemia Inizio, Glicemia Fine, Note / Dettagli
+  // or Data Inizio, Ora Inizio, Data Fine, Ora Fine, Protocollo, Target, Glicemia...
+  // =========================================================================
+  const isFastingFormat = headerLine.includes('rottura') || 
+                          (headerLine.includes('digiuno') && (headerLine.includes('durata') || headerLine.includes('inizio') || headerLine.includes('protocollo') || headerLine.includes('piano'))) ||
+                          ((headerLine.includes('protocollo') || headerLine.includes('piano')) && headerLine.includes('durata')) ||
+                          (headerLine.includes('glicemia inizio') || headerLine.includes('glicemia fine')) ||
+                          (headerLine.includes('fasting') && (headerLine.includes('duration') || headerLine.includes('plan') || headerLine.includes('protocol')));
+
+  if (isFastingFormat) {
+    const fastingSubType = subTypes.find(s => s.id === 'sub_fasting') || { id: 'sub_fasting', name: 'Digiuno', unit: 'ore' };
+    
+    let dateCol = header.findIndex(h => h === 'data' || h.startsWith('data') || h.includes('date') || h.includes('giorno'));
+    let startCol = header.findIndex(h => h === 'inizio' || h.startsWith('inizio') || h.includes('start') || h.includes('ora inizio'));
+    let endCol = header.findIndex(h => h.includes('fine') || h.includes('rottura') || h.includes('end') || h.includes('ora fine'));
+    let durCol = header.findIndex(h => h.includes('durata') || h.includes('duration') || h.includes('ore'));
+    let protoCol = header.findIndex(h => h.includes('protocollo') || h.includes('protocol') || h.includes('piano') || h.includes('plan'));
+    let stageCol = header.findIndex(h => h.includes('stadio') || h.includes('stage') || h.includes('metabolic'));
+    let gluStartCol = header.findIndex(h => (h.includes('glicemia') || h.includes('glucose')) && h.includes('inizio'));
+    let gluEndCol = header.findIndex(h => (h.includes('glicemia') || h.includes('glucose')) && (h.includes('fine') || h.includes('rottura')));
+    let noteCol = header.findIndex(h => h.includes('note') || h.includes('dettagli') || h.includes('comment'));
+
+    if (dateCol === -1) dateCol = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i];
+      if (row.length === 0 || (row.length === 1 && !row[0])) continue;
+
+      const rawDate = (row[dateCol] || '').trim();
+      const rawStart = startCol >= 0 && row[startCol] ? row[startCol].trim() : '20:00';
+      const rawEnd = endCol >= 0 && row[endCol] ? row[endCol].trim() : '12:00';
+      let rawDur = durCol >= 0 && row[durCol] ? row[durCol].trim() : '';
+      let rawProto = protoCol >= 0 && row[protoCol] ? row[protoCol].trim() : '';
+      const rawStage = stageCol >= 0 && row[stageCol] ? row[stageCol].trim() : '';
+      const rawGluStart = gluStartCol >= 0 && row[gluStartCol] ? row[gluStartCol].trim().replace(/[^\d.,]/g, '').replace(',', '.') : '';
+      const rawGluEnd = gluEndCol >= 0 && row[gluEndCol] ? row[gluEndCol].trim().replace(/[^\d.,]/g, '').replace(',', '.') : '';
+      const rawNote = noteCol >= 0 && row[noteCol] ? row[noteCol].trim() : '';
+
+      // Date parsing
+      let baseDateStr = rawDate;
+      const dt = parseDateTimeString(rawDate || rawEnd || new Date().toISOString().slice(0, 10), '12:00');
+      if (!dt) {
+        invalidRows.push({
+          rowNumber: i + 1,
+          raw: row.join(' | '),
+          error: `Data digiuno non valida: "${rawDate}"`
+        });
+        continue;
+      }
+      baseDateStr = dt.date;
+
+      // Extract times
+      let startTime = '20:00';
+      let startDate = baseDateStr;
+      let endTime = '12:00';
+      let endDate = baseDateStr;
+
+      if (rawStart.includes(':')) {
+        const parts = rawStart.split(' ');
+        if (parts.length > 1 && parts[0].includes('-')) {
+          startDate = parts[0];
+          startTime = parts[1].slice(0, 5);
+        } else {
+          startTime = rawStart.slice(0, 5);
+        }
+      }
+
+      if (rawEnd.includes(':')) {
+        const parts = rawEnd.split(' ');
+        if (parts.length > 1 && parts[0].includes('-')) {
+          endDate = parts[0];
+          endTime = parts[1].slice(0, 5);
+        } else {
+          endTime = rawEnd.slice(0, 5);
+        }
+      }
+
+      // Calculate duration if needed
+      let durNum = parseFloat(rawDur.replace(',', '.'));
+      if (isNaN(durNum) || durNum <= 0) {
+        // Compute from start & end time
+        const startTimestamp = new Date(`${startDate}T${startTime}:00`).getTime();
+        let endTimestamp = new Date(`${endDate}T${endTime}:00`).getTime();
+        if (endTimestamp <= startTimestamp) {
+          // Crosses midnight, so end is next day
+          endTimestamp += 24 * 3600 * 1000;
+        }
+        if (!isNaN(startTimestamp) && !isNaN(endTimestamp) && endTimestamp > startTimestamp) {
+          durNum = Math.round(((endTimestamp - startTimestamp) / (3600 * 1000)) * 10) / 10;
+        } else {
+          durNum = 16.0;
+        }
+      }
+
+      // Protocol deduce
+      if (!rawProto || rawProto === '-') {
+        if (durNum >= 22) rawProto = 'OMAD (23:1)';
+        else if (durNum >= 19.5) rawProto = '20:4';
+        else if (durNum >= 17.5) rawProto = '18:6';
+        else if (durNum >= 15) rawProto = '16:8';
+        else if (durNum >= 13.5) rawProto = '14:10';
+        else if (durNum >= 11.5) rawProto = '12:12';
+        else rawProto = 'Personalizzato';
+      }
+
+      let targetHours = 16;
+      if (rawProto.includes('20')) targetHours = 20;
+      else if (rawProto.includes('18')) targetHours = 18;
+      else if (rawProto.includes('OMAD') || rawProto.includes('23')) targetHours = 23;
+      else if (rawProto.includes('14')) targetHours = 14;
+      else if (rawProto.includes('12')) targetHours = 12;
+      else if (durNum > 0) targetHours = Math.floor(durNum);
+
+      // Build structured note
+      const noteDetails: string[] = [];
+      if (rawProto) noteDetails.push(`Piano: ${rawProto}`);
+      if (rawStage) noteDetails.push(`Stadio: ${rawStage}`);
+      if (rawGluStart) noteDetails.push(`Glicemia Inizio: ${rawGluStart} mg/dL`);
+      if (rawGluEnd) noteDetails.push(`Glicemia Fine: ${rawGluEnd} mg/dL`);
+      if (rawNote) noteDetails.push(rawNote);
+
+      const matchedCategory = findCategoryForTime(categories, endTime);
+
+      validRows.push({
+        id: `fasting_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
+        rawType: 'Digiuno Intermittente',
+        subTypeId: fastingSubType.id,
+        subTypeName: fastingSubType.name,
+        date: endDate,
+        time: endTime,
+        value: String(durNum).replace(',', '.'),
+        unit: 'ore',
+        fastingStartDate: startDate,
+        fastingStartTime: startTime,
+        fastingEndDate: endDate,
+        fastingEndTime: endTime,
+        fastingProtocol: rawProto,
+        fastingTargetHours: targetHours,
+        fastingStartGlucose: rawGluStart ? parseFloat(rawGluStart) : undefined,
+        fastingEndGlucose: rawGluEnd ? parseFloat(rawGluEnd) : undefined,
+        fastingIsInProgress: false,
+        note: noteDetails.join(' | '),
+        categoryId: matchedCategory.id,
+        categoryName: matchedCategory.name,
+        timestamp: new Date(`${endDate}T${endTime}:00`).getTime() || dt.timestamp,
+        isValid: true
+      });
+    }
+
+    validRows.sort((a, b) => b.timestamp - a.timestamp);
+    const dateRange = validRows.length > 0 ? { start: validRows[validRows.length - 1].date, end: validRows[0].date } : null;
+    return {
+      totalRows: validRows.length + invalidRows.length,
+      validRows,
+      invalidRows,
+      dateRange,
+      detectedFormat: 'fasting',
+      targetSubTypes: ['sub_fasting'],
+      categoryLabel: 'Digiuno Intermittente'
+    };
+  }
+
+  // =========================================================================
+  // 2. DETECT MEDICATIONS / FARMACI FORMAT
+  // Header: Nome Farmaco, Dosaggio, Orario / Frequenza, Istruzioni, Attivo (Si/No)
+  // or Data, Ora, Tipo, Farmaco, Dose, Note
+  // =========================================================================
+  const isMedicationFormat = (headerLine.includes('farmaco') || headerLine.includes('farmaci') || headerLine.includes('medication')) &&
+                             (headerLine.includes('dosaggio') || headerLine.includes('dosage') || headerLine.includes('orario') || headerLine.includes('istruzioni') || headerLine.includes('schedule') || headerLine.includes('attivo'));
+
+  if (isMedicationFormat) {
+    const medSubType = subTypes.find(s => s.id === 'sub_medication') || { id: 'sub_medication', name: 'Farmaco', unit: 'dose' };
+    
+    let nameCol = header.findIndex(h => h.includes('nome') || h.includes('farmaco') || h.includes('medication'));
+    let doseCol = header.findIndex(h => h.includes('dosaggio') || h.includes('dosage') || h.includes('dose'));
+    let schedCol = header.findIndex(h => h.includes('orario') || h.includes('frequenza') || h.includes('schedule') || h.includes('fascia'));
+    let instCol = header.findIndex(h => h.includes('istruzioni') || h.includes('instruction') || h.includes('indicazioni'));
+    let actCol = header.findIndex(h => h.includes('attivo') || h.includes('active') || h.includes('stato'));
+    let dateCol = header.findIndex(h => h === 'data' || h.startsWith('data') || h.includes('date'));
+    let timeCol = header.findIndex(h => h === 'ora' || h.startsWith('ora') || h.includes('time'));
+    let noteCol = header.findIndex(h => h.includes('note') || h.includes('comment'));
+
+    if (nameCol === -1) nameCol = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i];
+      if (row.length === 0 || (row.length === 1 && !row[0])) continue;
+
+      const rawName = (row[nameCol] || '').trim();
+      if (!rawName) continue;
+
+      const rawDose = doseCol >= 0 && row[doseCol] ? row[doseCol].trim() : '1 compressa';
+      const rawSched = schedCol >= 0 && row[schedCol] ? row[schedCol].trim() : 'Mattina';
+      const rawInst = instCol >= 0 && row[instCol] ? row[instCol].trim() : '';
+      const rawAct = actCol >= 0 && row[actCol] ? row[actCol].trim().toLowerCase() : 'sì';
+      const isActive = rawAct.startsWith('s') || rawAct.startsWith('y') || rawAct.includes('attivo') || rawAct === '1' || rawAct === 'true';
+
+      const rawDate = dateCol >= 0 && row[dateCol] ? row[dateCol].trim() : '';
+      const rawTime = timeCol >= 0 && row[timeCol] ? row[timeCol].trim() : '';
+      const rawNote = noteCol >= 0 && row[noteCol] ? row[noteCol].trim() : '';
+
+      // Infer time from schedule if time not provided
+      let defaultTime = '08:00';
+      const ls = rawSched.toLowerCase();
+      if (ls.includes('colazione') || ls.includes('mattina') || ls.includes('risveglio')) defaultTime = '08:00';
+      else if (ls.includes('pranzo') || ls.includes('mezzogiorno')) defaultTime = '13:00';
+      else if (ls.includes('cena') || ls.includes('sera')) defaultTime = '20:00';
+      else if (ls.includes('notte') || ls.includes('coricarsi') || ls.includes('letto')) defaultTime = '22:30';
+
+      const dt = parseDateTimeString(rawDate || new Date().toISOString().slice(0, 10), rawTime || defaultTime);
+      const rowDate = dt ? dt.date : new Date().toISOString().slice(0, 10);
+      const rowTime = dt ? dt.time : defaultTime;
+      const rowTs = dt ? dt.timestamp : Date.now() - i * 60000;
+
+      const matchedCategory = findCategoryForTime(categories, rowTime);
+
+      const notePieces: string[] = [];
+      notePieces.push(`Farmaco: ${rawName}`);
+      if (rawDose) notePieces.push(`Dose: ${rawDose}`);
+      if (rawSched) notePieces.push(`Orario: ${rawSched}`);
+      if (rawInst) notePieces.push(`Istruzioni: ${rawInst}`);
+      if (rawNote) notePieces.push(rawNote);
+
+      validRows.push({
+        id: `med_import_${rowTs}_${Math.random().toString(36).slice(2, 7)}`,
+        rawType: 'Farmaci / Terapia',
+        subTypeId: medSubType.id,
+        subTypeName: medSubType.name,
+        date: rowDate,
+        time: rowTime,
+        value: rawDose || '1 dose',
+        unit: 'dose',
+        medicationName: rawName,
+        medicationDosage: rawDose,
+        medicationSchedule: rawSched,
+        medicationInstructions: rawInst,
+        medicationActive: isActive,
+        note: notePieces.join(' | '),
+        categoryId: matchedCategory.id,
+        categoryName: matchedCategory.name,
+        timestamp: rowTs,
+        isValid: true
+      });
+    }
+
+    validRows.sort((a, b) => b.timestamp - a.timestamp);
+    const dateRange = validRows.length > 0 ? { start: validRows[validRows.length - 1].date, end: validRows[0].date } : null;
+    return {
+      totalRows: validRows.length + invalidRows.length,
+      validRows,
+      invalidRows,
+      dateRange,
+      detectedFormat: 'medication',
+      targetSubTypes: ['sub_medication'],
+      categoryLabel: 'Farmaci / Terapie'
+    };
+  }
+
+  // =========================================================================
+  // 3. DETECT NUTRITION SUMMARY TABLE FORMAT
   // Header: Data,Alimenti (Cal),% GDA,Grassi (g),Proteine (g),Carboidrati (g),Esercizio (Cal),Netto (Cal)
   // =========================================================================
   const isNutritionFormat = headerLine.includes('alimenti') || 
@@ -616,7 +892,7 @@ export function parseHealthCsv(
   }
 
   const uniqueSubTypes = Array.from(new Set(validRows.map(r => r.subTypeId)));
-  let detectedFormat: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'generic' = 'generic';
+  let detectedFormat: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'fasting' | 'medication' | 'generic' = 'generic';
   let categoryLabel = 'Tutte le Letture';
   let targetSubTypes = uniqueSubTypes;
 
@@ -634,9 +910,12 @@ export function parseHealthCsv(
     } else if (single === 'sub_food') {
       detectedFormat = 'nutrition';
       categoryLabel = 'Nutrizione';
+    } else if (single === 'sub_fasting') {
+      detectedFormat = 'fasting';
+      categoryLabel = 'Digiuno Intermittente';
     } else if (single === 'sub_medication') {
-      detectedFormat = 'generic';
-      categoryLabel = 'Farmaci / Insulina';
+      detectedFormat = 'medication';
+      categoryLabel = 'Farmaci / Terapie';
     } else if (single === 'sub_exercise') {
       detectedFormat = 'generic';
       categoryLabel = 'Esercizio Fisico';
@@ -693,6 +972,16 @@ export function convertToLogEntryItems(rows: ParsedCsvRow[]): LogEntryItem[] {
     mealTiming: r.mealTiming,
     note: r.note,
     timestamp: r.timestamp,
-    reminder: false
+    reminder: false,
+    // Fasting fields
+    fastingStartDate: r.fastingStartDate,
+    fastingStartTime: r.fastingStartTime,
+    fastingEndDate: r.fastingEndDate,
+    fastingEndTime: r.fastingEndTime,
+    fastingProtocol: r.fastingProtocol,
+    fastingTargetHours: r.fastingTargetHours,
+    fastingStartGlucose: r.fastingStartGlucose !== undefined ? Number(r.fastingStartGlucose) : undefined,
+    fastingEndGlucose: r.fastingEndGlucose !== undefined ? Number(r.fastingEndGlucose) : undefined,
+    fastingIsInProgress: r.fastingIsInProgress
   }));
 }

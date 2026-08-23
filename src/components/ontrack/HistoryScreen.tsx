@@ -468,9 +468,12 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
             {filteredEntries.map((entry) => {
               const isPressure = (entry.subTypeName || '').toLowerCase().includes('pressure') ||
                                 (entry.subTypeName || '').toLowerCase().includes('pressione') ||
-                                Boolean(entry.systolic && entry.diastolic);
+                                (entry.subTypeId || '').toLowerCase().includes('bp') ||
+                                (entry.subTypeId || '').toLowerCase().includes('pulse') ||
+                                (entry.subTypeName || '').toLowerCase().includes('pulsaz') ||
+                                (entry.subTypeName || '').toLowerCase().includes('battiti');
 
-              const pressureDisplay = entry.systolic && entry.diastolic
+              const pressureDisplay = isPressure && entry.systolic && entry.diastolic
                 ? `${entry.systolic}/${entry.diastolic}`
                 : (isPressure && entry.value.includes('/') ? entry.value : null);
 
@@ -526,7 +529,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                         )}
 
                         {/* Heart rate / Pulse pill */}
-                        {entry.pulse && (
+                        {isPressure && entry.pulse && (
                           <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800 text-xs font-mono font-bold shadow-2xs">
                             <Heart className="w-3 h-3 text-rose-600 dark:text-rose-400 fill-rose-500/30" />
                             <span>{entry.pulse} bpm</span>
@@ -623,11 +626,14 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                 filteredEntries.map((e, idx) => {
                   const isPressure = (e.subTypeName || '').toLowerCase().includes('pressure') ||
                                     (e.subTypeName || '').toLowerCase().includes('pressione') ||
-                                    Boolean(e.systolic && e.diastolic);
-                  const pressStr = e.systolic && e.diastolic
+                                    (e.subTypeId || '').toLowerCase().includes('bp') ||
+                                    (e.subTypeId || '').toLowerCase().includes('pulse') ||
+                                    (e.subTypeName || '').toLowerCase().includes('pulsaz') ||
+                                    (e.subTypeName || '').toLowerCase().includes('battiti');
+                  const pressStr = isPressure && e.systolic && e.diastolic
                     ? `${e.systolic}/${e.diastolic} mmHg`
-                    : (isPressure ? e.value : '-');
-                  const pulseStr = e.pulse ? `${e.pulse} bpm` : '';
+                    : (isPressure && e.value.includes('/') ? e.value : '-');
+                  const pulseStr = isPressure && e.pulse ? `${e.pulse} bpm` : '';
 
                   return (
                     <tr key={e.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'}>

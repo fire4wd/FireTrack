@@ -131,7 +131,7 @@ html.dark, body.dark {
 /* SQUARES, CHIPS & NUMBERS: WHITE BG + BLACK TEXT + CATEGORY-COLORED BORDER */
 /* ========================================================================= */
 
-/* Blood Tests / Laboratorio Specific Rules (White BG + Black Text + Colored Borders) */
+/* Blood Tests / Laboratorio Specific Rules (White BG + Black Text + Colored Borders FOR PDF EXPORT ONLY) */
 .pdf-export-mode #printable-bloodtests-area,
 .pdf-export-mode #printable-bloodtests-area *,
 #printable-bloodtests-area.pdf-export-mode,
@@ -172,38 +172,62 @@ html.dark, body.dark {
   background: #ffffff !important;
 }
 
+/* Badge Normale (Verde) nel PDF: Sfondo Bianco, Testo/Numeri Neri, Bordo Verde */
 .pdf-export-mode .blood-badge-normal,
 .pdf-export-mode [data-pdf-section="true"] .blood-badge-normal,
-#printable-bloodtests-area .blood-badge-normal {
+.pdf-export-mode #printable-bloodtests-area .blood-badge-normal,
+#printable-bloodtests-area.pdf-export-mode .blood-badge-normal,
+.pdf-export-mode div.blood-badge-normal,
+.pdf-export-mode [data-blood-status="normal"],
+.pdf-export-mode div[data-blood-status="normal"] {
   background-color: #ffffff !important;
   background: #ffffff !important;
   border: 2px solid #16a34a !important;
+  border-color: #16a34a !important;
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
+  box-shadow: none !important;
 }
 
 .pdf-export-mode .blood-badge-normal *,
 .pdf-export-mode [data-pdf-section="true"] .blood-badge-normal *,
-#printable-bloodtests-area.pdf-export-mode .blood-badge-normal * {
+.pdf-export-mode #printable-bloodtests-area .blood-badge-normal *,
+#printable-bloodtests-area.pdf-export-mode .blood-badge-normal *,
+.pdf-export-mode div.blood-badge-normal *,
+.pdf-export-mode [data-blood-status="normal"] *,
+.pdf-export-mode div[data-blood-status="normal"] * {
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
+  background-color: transparent !important;
 }
 
+/* Badge Fuori Soglia (Rosso) nel PDF: Sfondo Bianco, Testo/Numeri Neri, Bordo Rosso */
 .pdf-export-mode .blood-badge-out,
 .pdf-export-mode [data-pdf-section="true"] .blood-badge-out,
-#printable-bloodtests-area .blood-badge-out {
+.pdf-export-mode #printable-bloodtests-area .blood-badge-out,
+#printable-bloodtests-area.pdf-export-mode .blood-badge-out,
+.pdf-export-mode div.blood-badge-out,
+.pdf-export-mode [data-blood-status="out"],
+.pdf-export-mode div[data-blood-status="out"] {
   background-color: #ffffff !important;
   background: #ffffff !important;
   border: 2px solid #dc2626 !important;
+  border-color: #dc2626 !important;
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
+  box-shadow: none !important;
 }
 
 .pdf-export-mode .blood-badge-out *,
 .pdf-export-mode [data-pdf-section="true"] .blood-badge-out *,
-#printable-bloodtests-area.pdf-export-mode .blood-badge-out * {
+.pdf-export-mode #printable-bloodtests-area .blood-badge-out *,
+#printable-bloodtests-area.pdf-export-mode .blood-badge-out *,
+.pdf-export-mode div.blood-badge-out *,
+.pdf-export-mode [data-blood-status="out"] *,
+.pdf-export-mode div[data-blood-status="out"] * {
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
+  background-color: transparent !important;
 }
 
 .pdf-export-mode .blood-metric-card,
@@ -488,19 +512,66 @@ html.dark, body.dark {
   #printable-bloodtests-area,
   #printable-bloodtests-area * {
     color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
     background-color: #ffffff !important;
+    background: #ffffff !important;
+    text-shadow: none !important;
   }
 
-  #printable-bloodtests-area .blood-badge-normal {
+  #printable-bloodtests-area table,
+  #printable-bloodtests-area thead,
+  #printable-bloodtests-area tbody,
+  #printable-bloodtests-area tr,
+  #printable-bloodtests-area th,
+  #printable-bloodtests-area td {
     background-color: #ffffff !important;
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+  }
+
+  #printable-bloodtests-area .blood-badge,
+  #printable-bloodtests-area .blood-badge-normal,
+  #printable-bloodtests-area [data-blood-status="normal"] {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
     border: 2px solid #16a34a !important;
+    border-color: #16a34a !important;
+    border-width: 2px !important;
+    border-style: solid !important;
     color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    box-shadow: none !important;
   }
 
-  #printable-bloodtests-area .blood-badge-out {
-    background-color: #ffffff !important;
-    border: 2px solid #dc2626 !important;
+  #printable-bloodtests-area .blood-badge-normal *,
+  #printable-bloodtests-area [data-blood-status="normal"] * {
     color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  #printable-bloodtests-area .blood-badge-out,
+  #printable-bloodtests-area [data-blood-status="out"] {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    border: 2px solid #dc2626 !important;
+    border-color: #dc2626 !important;
+    border-width: 2px !important;
+    border-style: solid !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    box-shadow: none !important;
+  }
+
+  #printable-bloodtests-area .blood-badge-out *,
+  #printable-bloodtests-area [data-blood-status="out"] * {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    background-color: transparent !important;
+    background: transparent !important;
   }
 
   #printable-bloodtests-area .blood-icon-purple {

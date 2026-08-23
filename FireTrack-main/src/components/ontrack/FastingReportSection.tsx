@@ -523,12 +523,12 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
     // Default rich sample fasting sessions matching 7 days of fasting (14:10, 16:8, 18:6 e 20:4 al Mercoledì) + extended timeline
     const core7Days = [
       { date: '2026-08-15', start: '20:30', end: '13:00', dur: 16.5, proto: '16:8', target: 16, note: 'Rottura digiuno con insalata di pollo e noci. Ottima energia!', gluStart: 128, gluEnd: 84 },
-      { date: '2026-08-14', start: '20:00', end: '10:30', dur: 14.5, proto: '14:10', target: 14, note: 'Protocollo 14:10 (Normale) completato con regolarità e facilità.', gluStart: 132, gluEnd: 88 },
-      { date: '2026-08-13', start: '20:00', end: '14:30', dur: 18.5, proto: '18:6', target: 18, note: 'Protocollo 18:6 completato. Glicemia serale pre-digiuno stabile.', gluStart: 138, gluEnd: 82 },
+      { date: '2026-08-14', start: '20:00', end: '10:30', dur: 14.5, proto: '14:10', target: 14, note: 'Split 14:10 (Normale) completato con regolarità e facilità.', gluStart: 132, gluEnd: 88 },
+      { date: '2026-08-13', start: '20:00', end: '14:30', dur: 18.5, proto: '18:6', target: 18, note: 'Split 18:6 completato. Glicemia serale pre-digiuno stabile.', gluStart: 138, gluEnd: 82 },
       { date: '2026-08-12', start: '19:30', end: '16:00', dur: 20.5, proto: '20:4', target: 20, note: 'Mercoledì: Digiuno prolungato 20:4 (Guerriero), chetosi avanzata e massima lucidità.', gluStart: 140, gluEnd: 78 },
       { date: '2026-08-11', start: '20:00', end: '12:00', dur: 16.0, proto: '16:8', target: 16, note: 'Pranzo leggero con verdure grigliate e uova sode.', gluStart: 125, gluEnd: 86 },
-      { date: '2026-08-10', start: '20:30', end: '10:30', dur: 14.0, proto: '14:10', target: 14, note: 'Inizio settimana con protocollo 14:10 (Normale), idratazione costante.', gluStart: 134, gluEnd: 89 },
-      { date: '2026-08-09', start: '19:45', end: '13:45', dur: 18.0, proto: '18:6', target: 18, note: 'Domenica: Protocollo 18:6 completato con ottimo recupero metabolico.', gluStart: 139, gluEnd: 81 }
+      { date: '2026-08-10', start: '20:30', end: '10:30', dur: 14.0, proto: '14:10', target: 14, note: 'Inizio settimana con split 14:10 (Normale), idratazione costante.', gluStart: 134, gluEnd: 89 },
+      { date: '2026-08-09', start: '19:45', end: '13:45', dur: 18.0, proto: '18:6', target: 18, note: 'Domenica: Split 18:6 completato con ottimo recupero metabolico.', gluStart: 139, gluEnd: 81 }
     ];
 
     const result: FastingReportEntry[] = [];
@@ -560,11 +560,11 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
     // Extended history for 14, 30, 60, 90 days and full year filters
     const historyPatterns = [
       { proto: '16:8', dur: 16.5, target: 16, start: '20:00', end: '12:30', gluStart: 130, gluEnd: 85, note: 'Sessione regolare 16:8.' },
-      { proto: '14:10', dur: 14.0, target: 14, start: '20:30', end: '10:30', gluStart: 135, gluEnd: 90, note: 'Protocollo 14:10 (Normale).' },
-      { proto: '18:6', dur: 18.0, target: 18, start: '20:00', end: '14:00', gluStart: 138, gluEnd: 80, note: 'Protocollo 18:6 con chetosi.' },
+      { proto: '14:10', dur: 14.0, target: 14, start: '20:30', end: '10:30', gluStart: 135, gluEnd: 90, note: 'Split 14:10 (Normale).' },
+      { proto: '18:6', dur: 18.0, target: 18, start: '20:00', end: '14:00', gluStart: 138, gluEnd: 80, note: 'Split 18:6 con chetosi.' },
       { proto: '20:4', dur: 20.0, target: 20, start: '19:30', end: '15:30', gluStart: 142, gluEnd: 77, note: 'Digiuno 20:4 del guerriero.' },
       { proto: '16:8', dur: 16.0, target: 16, start: '20:00', end: '12:00', gluStart: 128, gluEnd: 86, note: 'Ottima digestione e sonno riposante.' },
-      { proto: '14:10', dur: 14.5, target: 14, start: '20:00', end: '10:30', gluStart: 133, gluEnd: 88, note: 'Protocollo 14:10 (Normale).' },
+      { proto: '14:10', dur: 14.5, target: 14, start: '20:00', end: '10:30', gluStart: 133, gluEnd: 88, note: 'Split 14:10 (Normale).' },
       { proto: '18:6', dur: 18.5, target: 18, start: '19:45', end: '14:15', gluStart: 136, gluEnd: 79, note: '18 ore con camminata mattutina.' }
     ];
 
@@ -1072,7 +1072,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                     Digiuno in Corso
                   </span>
                   <span className="text-xs text-stone-300 font-mono">
-                    Protocollo: <strong className="text-teal-300">{activeFasting.protocol}</strong> ({activeFastingData.targetHours}h)
+                    Split: <strong className="text-teal-300">{activeFasting.protocol}</strong> ({activeFastingData.targetHours}h)
                   </span>
                 </div>
                 <div className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight mt-1 flex items-baseline space-x-2">
@@ -1110,7 +1110,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
             </div>
           </div>
 
-          {/* 4 Meta Badges Grid: Ora Inizio, Protocollo, Ora Prevista Fine, Livello Biologico Attuale */}
+          {/* 4 Meta Badges Grid: Ora Inizio, Split, Ora Prevista Fine, Livello Biologico Attuale */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 relative z-10">
 
             {/* 1. Ora Inizio */}
@@ -1127,11 +1127,11 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
               </div>
             </div>
 
-            {/* 2. Protocollo */}
+            {/* 2. Split */}
             <div className="bg-black/30 border border-white/10 rounded-xl p-3.5 space-y-1">
               <div className="text-[11px] font-bold text-stone-400 flex items-center space-x-1.5">
                 <Layers className="w-3.5 h-3.5 text-teal-400" />
-                <span>Protocollo</span>
+                <span>Split</span>
               </div>
               <div className="text-base font-bold text-teal-300 font-mono">
                 {activeFasting.protocol} ({activeFastingData.targetHours} ore)
@@ -1387,10 +1387,10 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
           </div>
         </div>
 
-        {/* CARD 3: Protocollo Preferito del Utente */}
+        {/* CARD 3: Split Preferito del Utente */}
         <div className="bg-white dark:bg-[#1a1d24] border border-stone-200 dark:border-stone-800 rounded-2xl p-4 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-stone-500 dark:text-stone-400 text-xs font-bold">
-            <span>Protocollo Preferito</span>
+            <span>Split Preferito</span>
             <Award className="w-4 h-4 text-purple-600 dark:text-purple-400" />
           </div>
           <div className="text-2xl font-black text-purple-600 dark:text-purple-400 font-mono">
@@ -1685,7 +1685,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
 
           <div className="p-3 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200 dark:border-stone-700 text-xs">
             <span className="font-bold text-stone-800 dark:text-stone-200 block mb-0.5">
-              Protocollo preferito del Utente:
+              Split preferito del Utente:
             </span>
             <span className="text-teal-600 dark:text-teal-400 font-bold">{topProtocolEntry.name}</span> ({topProtocolEntry.pct}% di frequenza) con regolarità serale.
           </div>
@@ -1702,7 +1702,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
               <span>Registro Dettagliato Sessioni di Digiuno</span>
             </h3>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              Cronologia completa con orari inizio/fine, durata, protocollo, glicemia e note.
+              Cronologia completa con orari inizio/fine, durata, split, glicemia e note.
             </p>
           </div>
 
@@ -1735,7 +1735,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                 <th className="p-3 text-center">Inizio</th>
                 <th className="p-3 text-center">Fine (Rottura)</th>
                 <th className="p-3 text-center">Durata Effettiva</th>
-                <th className="p-3 text-center">Protocollo</th>
+                <th className="p-3 text-center">Split</th>
                 <th className="p-3 text-center">Stadio Raggiunto</th>
                 <th className="p-3 text-center">Glicemia Inizio/Fine</th>
                 <th className="p-3">Note / Pasto di Rottura</th>
@@ -1944,7 +1944,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
               {/* SECTION: PROTOCOLLO & TARGET */}
               <div className="space-y-2">
                 <label className="block font-bold text-stone-700 dark:text-stone-300">
-                  Protocollo & Durata Target
+                  Split & Durata Target
                 </label>
 
                 {/* Protocol Quick Pills */}
@@ -1979,7 +1979,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-1">
-                      Seleziona Protocollo
+                      Seleziona Split
                     </label>
                     <select
                       value={editProtocol}

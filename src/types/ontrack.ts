@@ -47,6 +47,16 @@ export interface LogEntryItem {
   exerciseCal?: string;
   netCal?: string;
   manual?: boolean;
+  // Fasting Specific Fields
+  fastingStartDate?: string;
+  fastingStartTime?: string;
+  fastingEndDate?: string;
+  fastingEndTime?: string;
+  fastingProtocol?: string;
+  fastingTargetHours?: number;
+  fastingStartGlucose?: string | number;
+  fastingEndGlucose?: string | number;
+  fastingIsInProgress?: boolean;
   timestamp: number;
 }
 

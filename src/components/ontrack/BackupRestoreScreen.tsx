@@ -25,9 +25,10 @@ import {
   Trash2,
   Sliders,
   CheckCircle2,
-  FolderOpen
+  FolderOpen,
+  Pill
 } from 'lucide-react';
-import { LogEntryItem, HealthCategory, HealthSubType, BloodTestParameter, BloodTestRecord, NextcloudConfig, UserSettings } from '../../types/ontrack';
+import { LogEntryItem, HealthCategory, HealthSubType, BloodTestParameter, BloodTestRecord, NextcloudConfig, UserSettings, MedicationItem } from '../../types/ontrack';
 import { 
   downloadBackupJSON, 
   shareBackupJSON,
@@ -37,8 +38,11 @@ import {
   getBackupJSONString,
   loadUserSettings,
   saveUserSettings,
-  defaultNextcloudConfig
+  defaultNextcloudConfig,
+  loadMedications,
+  saveMedications
 } from '../../utils/ontrackStorage';
+import { MedicationsImportExportModal } from './MedicationsImportExportModal';
 import { 
   downloadRawSqliteDbFile, 
   shareRawSqliteDbFile, 
@@ -105,6 +109,10 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [isExportingLogbook, setIsExportingLogbook] = useState(false);
   const [isExportingBlood, setIsExportingBlood] = useState(false);
+
+  // Medications state
+  const [medicationsList, setMedicationsList] = useState<MedicationItem[]>(() => loadMedications());
+  const [isMedModalOpen, setIsMedModalOpen] = useState(false);
 
   // Restore state
   const [restoreTab, setRestoreTab] = useState<'file' | 'text'>('file');
@@ -1152,6 +1160,38 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
         </div>
 
         {/* ================================================================= */}
+        {/* CARD: Importa / Esporta Elenco Farmaci (CSV & JSON)               */}
+        {/* ================================================================= */}
+        <div className="bg-white dark:bg-[#1a1d24] rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-stone-100 dark:border-stone-800 pb-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-[#3b7080] text-white flex items-center justify-center shadow-xs shrink-0">
+                <Pill className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
+                  Importazione ed Esportazione Farmaci
+                </h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  {medicationsList.length} farmaci configurati • Scarica in CSV / JSON o carica una lista
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMedModalOpen(true)}
+              className="w-full py-3 px-4 bg-[#3b7080] hover:bg-[#2e5865] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Apri Gestione Import / Export Farmaci</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ================================================================= */}
         {/* CARD 3: Ripristina Backup Locale (File o Testo)                   */}
         {/* ================================================================= */}
         <div className="bg-white dark:bg-[#1a1d24] rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs p-4 sm:p-6 space-y-4">
@@ -1259,6 +1299,18 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
             </div>
           )}
         </div>
+
+        {/* Medications Import / Export Modal */}
+        <MedicationsImportExportModal
+          isOpen={isMedModalOpen}
+          onClose={() => setIsMedModalOpen(false)}
+          medications={medicationsList}
+          onUpdateMedications={(updated) => {
+            setMedicationsList(updated);
+            showToast(`✅ Lista farmaci aggiornata (${updated.length} farmaci registrati).`);
+          }}
+          patientName={userSettings.patientName || 'Utente'}
+        />
 
       </div>
 

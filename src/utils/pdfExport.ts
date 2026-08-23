@@ -11,42 +11,7 @@ async function captureElementImage(element: HTMLElement, orientation: 'portrait'
   const targetWidth = Math.max(element.scrollWidth, element.offsetWidth, minTargetWidth);
   const targetHeight = Math.max(element.scrollHeight, element.offsetHeight, 300);
 
-  // First attempt: html-to-image (modern, high-fidelity SVG foreignObject)
-  try {
-    const dataUrl = await toPng(element, {
-      quality: 0.98,
-      pixelRatio: 2,
-      backgroundColor: '#ffffff',
-      cacheBust: false,
-      fontEmbedCSS: '', // Prevents SecurityError on cross-origin stylesheet cssRules access
-      skipAutoScale: false,
-      width: targetWidth,
-      height: targetHeight,
-      style: {
-        width: `${targetWidth}px`,
-        maxWidth: 'none',
-        left: '0px',
-        top: '0px',
-        position: 'static',
-        transform: 'none',
-        display: 'block',
-        visibility: 'visible',
-      },
-      filter: (node: HTMLElement) => {
-        if (node.classList && (node.classList.contains('print:hidden') || node.classList.contains('no-print'))) {
-          return false;
-        }
-        return true;
-      }
-    });
-    if (dataUrl && dataUrl.length > 200) {
-      return dataUrl;
-    }
-  } catch (err) {
-    console.warn('html-to-image toPng failed, trying html2canvas fallback:', err);
-  }
-
-  // Fallback attempt: html2canvas
+  // Primary capture: html2canvas with dedicated onclone styling
   try {
     const canvas = await html2canvas(element, {
       scale: 2,
@@ -73,6 +38,73 @@ async function captureElementImage(element: HTMLElement, orientation: 'portrait'
         clonedEl.style.visibility = 'visible';
         clonedEl.style.backgroundColor = '#ffffff';
         clonedEl.style.color = '#000000';
+
+        // 1. Force white background & black text on all container / table elements
+        const allElements = clonedEl.querySelectorAll<HTMLElement>('*');
+        allElements.forEach((el) => {
+          el.classList.remove('dark');
+          el.style.setProperty('text-shadow', 'none', 'important');
+        });
+
+        const allContainers = clonedEl.querySelectorAll<HTMLElement>('table, thead, tbody, tr, th, td, div, p, span, h1, h2, h3, h4');
+        allContainers.forEach((el) => {
+          if (!el.classList.contains('blood-badge') && !el.hasAttribute('data-blood-status')) {
+            el.style.setProperty('background-color', '#ffffff', 'important');
+            el.style.setProperty('background', '#ffffff', 'important');
+          }
+          el.style.setProperty('color', '#000000', 'important');
+          el.style.setProperty('-webkit-text-fill-color', '#000000', 'important');
+        });
+
+        // 2. Direct DOM enforcement for blood test badges: White BG, Black Text, Colored Border
+        const allBadges = clonedEl.querySelectorAll<HTMLElement>('.blood-badge, .blood-badge-normal, .blood-badge-out, [data-blood-status]');
+        allBadges.forEach((badge) => {
+          const isGreen = badge.classList.contains('blood-badge-normal') || badge.getAttribute('data-blood-status') === 'normal';
+          const borderColor = isGreen ? '#16a34a' : '#dc2626';
+
+          badge.style.setProperty('background-color', '#ffffff', 'important');
+          badge.style.setProperty('background', '#ffffff', 'important');
+          badge.style.setProperty('border', `2px solid ${borderColor}`, 'important');
+          badge.style.setProperty('border-color', borderColor, 'important');
+          badge.style.setProperty('border-width', '2px', 'important');
+          badge.style.setProperty('border-style', 'solid', 'important');
+          badge.style.setProperty('color', '#000000', 'important');
+          badge.style.setProperty('-webkit-text-fill-color', '#000000', 'important');
+          badge.style.setProperty('box-shadow', 'none', 'important');
+
+          const badgeChildren = badge.querySelectorAll<HTMLElement>('*');
+          badgeChildren.forEach((child) => {
+            child.style.setProperty('color', '#000000', 'important');
+            child.style.setProperty('-webkit-text-fill-color', '#000000', 'important');
+            child.style.setProperty('background-color', 'transparent', 'important');
+            child.style.setProperty('background', 'transparent', 'important');
+          });
+        });
+
+        // 3. Metric cards borders and white bg
+        const metricCards = clonedEl.querySelectorAll<HTMLElement>('.blood-metric-card');
+        metricCards.forEach((card) => {
+          card.style.setProperty('background-color', '#ffffff', 'important');
+          card.style.setProperty('background', '#ffffff', 'important');
+          card.style.setProperty('border', '1.5px solid #cbd5e1', 'important');
+        });
+
+        // 4. Legend boxes and text enforcement
+        const greenLegendBox = clonedEl.querySelectorAll<HTMLElement>('.blood-legend-green-box');
+        greenLegendBox.forEach((b) => {
+          b.style.setProperty('background-color', '#ffffff', 'important');
+          b.style.setProperty('background', '#ffffff', 'important');
+          b.style.setProperty('border', '2px solid #16a34a', 'important');
+          b.style.setProperty('border-color', '#16a34a', 'important');
+        });
+
+        const redLegendBox = clonedEl.querySelectorAll<HTMLElement>('.blood-legend-red-box');
+        redLegendBox.forEach((b) => {
+          b.style.setProperty('background-color', '#ffffff', 'important');
+          b.style.setProperty('background', '#ffffff', 'important');
+          b.style.setProperty('border', '2px solid #dc2626', 'important');
+          b.style.setProperty('border-color', '#dc2626', 'important');
+        });
       },
       ignoreElements: (el) => {
         return el.classList?.contains('print:hidden') || el.classList?.contains('no-print');
@@ -80,9 +112,46 @@ async function captureElementImage(element: HTMLElement, orientation: 'portrait'
     });
     return canvas.toDataURL('image/png', 0.98);
   } catch (canvasErr) {
-    console.error('html2canvas also failed:', canvasErr);
+    console.warn('html2canvas capture failed, trying html-to-image toPng fallback:', canvasErr);
+  }
+
+  // Fallback attempt: html-to-image (toPng)
+  try {
+    const dataUrl = await toPng(element, {
+      quality: 0.98,
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      cacheBust: false,
+      fontEmbedCSS: '',
+      skipAutoScale: false,
+      width: targetWidth,
+      height: targetHeight,
+      style: {
+        width: `${targetWidth}px`,
+        maxWidth: 'none',
+        left: '0px',
+        top: '0px',
+        position: 'static',
+        transform: 'none',
+        display: 'block',
+        visibility: 'visible',
+      },
+      filter: (node: HTMLElement) => {
+        if (node.classList && (node.classList.contains('print:hidden') || node.classList.contains('no-print'))) {
+          return false;
+        }
+        return true;
+      }
+    });
+    if (dataUrl && dataUrl.length > 200) {
+      return dataUrl;
+    }
+  } catch (err) {
+    console.error('All PDF image capture methods failed:', err);
     throw new Error('Impossibile effettuare il rendering visivo del report per la generazione del PDF.');
   }
+
+  throw new Error('Impossibile generare l\'immagine del report per il PDF.');
 }
 
 /**
@@ -218,6 +287,10 @@ export async function exportElementToPdf(
     // Check if the container has dedicated child sections with specified orientations
     const sectionNodes = element.querySelectorAll<HTMLElement>('[data-pdf-section="true"]');
     const sections: HTMLElement[] = sectionNodes.length > 0 ? Array.from(sectionNodes) : [element];
+
+    for (const s of sections) {
+      s.classList.add('pdf-export-mode');
+    }
 
     const elementOrientation = (element.getAttribute('data-pdf-orientation') as 'portrait' | 'landscape') || null;
     const firstSectionOrientation = (sections[0].getAttribute('data-pdf-orientation') as 'portrait' | 'landscape') || null;

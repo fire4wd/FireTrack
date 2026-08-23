@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { OnTrackHeader } from './OnTrackHeader';
 import { WholeAppleIcon, AppleCoreIcon } from './AppleIcons';
-import { HealthCategory, HealthSubType, LogEntryItem } from '../../types/ontrack';
+import { HealthCategory, HealthSubType, LogEntryItem, SavedFastingRecord, MedicationItem } from '../../types/ontrack';
 import { parseHealthCsv, convertToLogEntryItems, CsvParseResult } from '../../utils/csvImporter';
 import { 
   FileSpreadsheet, 
@@ -18,8 +18,24 @@ import {
   Layers,
   PlusCircle,
   RefreshCw,
+  Download,
+  Flame,
+  Pill,
+  Timer,
   X
 } from 'lucide-react';
+import { 
+  downloadGlucoseCsvTemplate, 
+  downloadPressureCsvTemplate, 
+  downloadWeightCsvTemplate, 
+  downloadNutritionCsvTemplate, 
+  downloadMedicationCsvTemplate, 
+  downloadFastingCsvTemplate,
+  saveSavedFastings,
+  loadSavedFastings,
+  saveMedications,
+  loadMedications
+} from '../../utils/ontrackStorage';
 
 interface CsvImportModalProps {
   isOpen: boolean;
@@ -52,89 +68,27 @@ const SAMPLE_WEIGHT_CSV = `Data,Ora,Tipo,Peso (kg),Quanto conforme siete stati?
 2026-06-07,12:00,Peso,98.5,Abbastanza buono
 2026-06-03,12:00,Peso,99,Abbastanza buono
 2026-05-11,12:00,Peso,99.5,Abbastanza buono
-2026-03-09,12:00,Peso,100.6,Abbastanza buono
-2025-10-19,12:00,Peso,100.6,Abbastanza buono
-2025-08-13,12:00,Peso,97.6,Abbastanza buono
-2025-08-11,12:00,Peso,97.5,Abbastanza buono
-2025-08-04,12:00,Peso,98,Abbastanza buono
-2025-07-28,12:00,Peso,97.5,Abbastanza buono
-2025-07-21,12:00,Peso,97.5,Abbastanza buono
-2025-07-14,12:00,Peso,98,Abbastanza buono
-2025-07-08,12:00,Peso,97,Abbastanza buono
-2025-05-09,12:00,Peso,97.5,Abbastanza buono
-2025-05-02,12:00,Peso,97.2,Abbastanza buono
-2025-04-26,12:00,Peso,97.5,Abbastanza buono
-2025-04-13,12:00,Peso,99,Abbastanza buono
-2025-04-07,12:00,Peso,97.5,Abbastanza buono
-2025-03-31,12:00,Peso,97.2,Abbastanza buono
-2025-03-03,12:00,Peso,96.9,Abbastanza buono
-2025-03-02,12:00,Peso,96.9,Abbastanza buono
-2025-02-24,12:00,Peso,97.3,Abbastanza buono
-2025-02-17,12:00,Peso,97,Abbastanza buono
-2025-02-10,12:00,Peso,97,Abbastanza buono
-2025-02-08,12:00,Peso,97,Abbastanza buono
-2025-02-03,12:00,Peso,98,Abbastanza buono
-2025-01-15,12:00,Peso,99,Scarso
-2025-01-11,12:00,Peso,97.5,Abbastanza buono
-2024-03-10,12:00,Peso,99,Abbastanza buono
-2024-03-02,12:00,Peso,100,Abbastanza buono
-2023-09-08,12:00,Peso,99,Abbastanza buono
-2023-09-05,12:00,Peso,101,Abbastanza buono
-2023-09-01,12:00,Peso,104,Abbastanza buono
-2023-08-27,12:00,Peso,100,Scarso
-2023-08-11,12:00,Peso,101,Abbastanza buono
-2023-07-02,12:00,Peso,105,Abbastanza buono
-2022-11-06,12:00,Peso,105,Abbastanza buono
-2022-10-31,12:00,Peso,106,Abbastanza buono
-2022-10-24,12:00,Peso,107,Abbastanza buono
-2022-10-04,12:00,Peso,109,Abbastanza buono
-2022-04-22,12:00,Peso,103,Abbastanza buono
-2022-04-04,12:00,Peso,105,Non applicabile
-2021-12-20,12:00,Peso,99.5,Abbastanza buono
-2021-12-13,12:00,Peso,99,Abbastanza buono
-2021-12-06,12:00,Peso,99.5,Abbastanza buono
-2021-11-23,12:00,Peso,100,Abbastanza buono
-2021-11-22,12:00,Peso,100,Abbastanza buono
-2021-11-07,12:00,Peso,100.5,Abbastanza buono
-2021-10-02,12:00,Peso,101,Abbastanza buono
-2021-09-18,12:00,Peso,102,Abbastanza buono
-2021-09-04,12:00,Peso,103,Abbastanza buono
-2021-08-20,12:00,Peso,113,Abbastanza buono
-2021-07-18,12:00,Peso,107,Abbastanza buono
-2021-06-15,12:00,Peso,109.4,Abbastanza buono
-2021-04-05,12:00,Peso,111,Abbastanza buono
-2021-02-06,12:00,Peso,119,Abbastanza buono
-2020-02-06,12:00,Peso,128.7,Non applicabile`;
+2026-03-09,12:00,Peso,100.6,Abbastanza buono`;
 
 const SAMPLE_NUTRITION_CSV = `Data,Ora,Tipo,Alimenti (Cal),% GDA,Grassi (g),Proteine (g),Carboidrati (g),Esercizio (Cal),Netto (Cal),Note
-2026-08-16,12:00,Alimenti,-,-,-,-,-,-,-,Aggiungi Nota
-2026-08-15,12:00,Alimenti,-,-,-,-,-,-,-,Aggiungi Nota
-2026-08-14,12:00,Alimenti,-,-,-,-,-,-,-,Aggiungi Nota
-2026-08-13,12:00,Alimenti,-,-,-,-,-,-,-,Aggiungi Nota
-2026-08-12,12:00,Alimenti,-,-,-,-,-,-,-,Aggiungi Nota
-2026-08-11,12:00,Alimenti,-,-,-,-,-,-,-,Aggiungi Nota
-2026-08-10,12:00,Alimenti,-,-,-,-,-,-,-,Aggiungi Nota
-2026-08-09,12:00,Alimenti,-,-,-,-,-,-,-,Aggiungi Nota
-2026-08-02,12:00,Alimenti,421,23,-,-,18.48,27.56,37.25,-
-2026-07-19,12:00,Alimenti,471,26,24.26,25.68,37.84,-,-,-
-2026-06-02,12:00,Alimenti,1102,61,37.56,40.83,146.09,-,-,-
-2026-05-10,12:00,Alimenti,399,22,17.84,23.43,37.19,-,-,-
-2026-05-09,12:00,Alimenti,399,22,11.61,35.03,37.25,-,-,-
-2026-05-08,12:00,Alimenti,488,27,16.26,27.78,61.20,-,-,-
-2026-05-07,12:00,Alimenti,628,35,34.68,20.88,61.20,-,-,-
-2026-05-06,12:00,Alimenti,471,26,24.26,25.68,37.84,-,-,-
-2026-05-05,12:00,Alimenti,471,26,24.26,25.68,37.84,-,-,-
-2026-05-04,12:00,Alimenti,1,0,0.11,0.07,0.00,-,-,-
-2026-05-03,12:00,Alimenti,1,0,0.11,0.07,0.00,-,-,-
-2026-05-02,12:00,Alimenti,484,27,16.38,25.98,61.62,-,-,-
-2026-05-01,12:00,Alimenti,421,23,18.51,23.57,40.21,-,-,-
-2026-04-30,12:00,Alimenti,471,26,24.26,25.68,37.84,-,-,-
-2026-04-29,12:00,Alimenti,421,23,18.48,27.56,37.25,-,-,-
-2026-04-28,12:00,Alimenti,628,35,34.68,20.88,61.20,-,-,-
-2026-04-27,12:00,Alimenti,564,31,4.36,45.30,80.61,-,-,-
-2026-04-26,12:00,Alimenti,943,52,32.05,45.68,124.36,-,-,-
-2026-04-25,12:00,Alimenti,945,52,24.88,54.96,128.32,-,-,-
-2026-04-24,12:00,Alimenti,545,30,13.38,20.00,89.80,-,-,-`;
+2026-08-16,12:00,Alimenti,421,23,18.48,27.56,37.25,-,-,Pranzo equilibrato
+2026-08-15,12:00,Alimenti,471,26,24.26,25.68,37.84,-,-,Cena proteica
+2026-08-14,12:00,Alimenti,545,30,13.38,20.00,89.80,-,-,Cena leggera`;
+
+const SAMPLE_MEDICATIONS_CSV = `Nome Farmaco,Dosaggio,Orario / Frequenza,Istruzioni,Attivo (Si/No)
+Metformina,500 mg,Pranzo e Cena,Durante i pasti a stomaco pieno,Sì
+Cardioaspirina,100 mg,Pranzo,A stomaco pieno con abbondante acqua,Sì
+Omega 3,1000 mg,Colazione,Durante la colazione,Sì
+Januvia (Sitagliptin),100 mg,Mattina,Una volta al giorno al risveglio,Sì
+Vitamina D3,2000 UI,Mattina,Dopo colazione,Sì`;
+
+const SAMPLE_FASTING_CSV = `Data,Inizio,Fine (Rottura),Durata (Ore),Piano,Stadio Metabolico,Glicemia Inizio,Glicemia Fine,Note / Dettagli
+2026-08-15,20:30,13:00,16.5,16:8,Chetosi (16-22h),128,84,Rottura digiuno con insalata di pollo e noci. Ottima energia!
+2026-08-14,20:00,10:30,14.5,14:10,Lipolisi (12-16h),132,88,Piano 14:10 (Normale) completato con facilità.
+2026-08-13,20:00,14:30,18.5,18:6,Chetosi (16-22h),138,82,Piano 18:6 completato. Glicemia stabile.
+2026-08-12,19:30,16:00,20.5,20:4,Autofagia (22h+),140,78,Mercoledì: Digiuno 20:4 del Guerriero, chetosi avanzata.
+2026-08-11,20:00,12:00,16.0,16:8,Chetosi (16-22h),125,86,Pranzo leggero con verdure grigliate.
+2026-08-10,20:30,10:30,14.0,14:10,Lipolisi (12-16h),134,89,Inizio settimana 14:10, idratazione costante.`;
 
 export const CsvImportModal: React.FC<CsvImportModalProps> = ({
   isOpen,
@@ -194,24 +148,50 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
     }
   };
 
-  const handleLoadPreset = (type: 'glucose' | 'pressure' | 'weight' | 'nutrition') => {
+  const handleLoadPreset = (type: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'medication' | 'fasting') => {
     if (type === 'glucose') handleParse(SAMPLE_GLUCOSE_CSV, 'Esempio_Glicemie_Ago2026.csv');
     else if (type === 'pressure') handleParse(SAMPLE_PRESSURE_CSV, 'Esempio_Pressione_Ago2026.csv');
     else if (type === 'weight') handleParse(SAMPLE_WEIGHT_CSV, 'Esempio_Peso_Ago2026.csv');
     else if (type === 'nutrition') handleParse(SAMPLE_NUTRITION_CSV, 'Esempio_Riepilogo_Nutrizionale.csv');
+    else if (type === 'medication') handleParse(SAMPLE_MEDICATIONS_CSV, 'Esempio_Farmaci_Terapie.csv');
+    else if (type === 'fasting') handleParse(SAMPLE_FASTING_CSV, 'Esempio_Digiuno_Intermittente.csv');
   };
 
   const getOtherCategoriesHint = (categoryLabel: string): string => {
     const cl = (categoryLabel || '').toLowerCase();
-    if (cl.includes('glicem')) return 'Pressione, Peso, Nutrizione, Farmaci';
-    if (cl.includes('press')) return 'Glicemia, Peso, Nutrizione, Farmaci';
-    if (cl.includes('peso')) return 'Glicemia, Pressione, Nutrizione, Farmaci';
-    if (cl.includes('nutri') || cl.includes('aliment') || cl.includes('cibo')) return 'Glicemia, Pressione, Peso, Farmaci';
+    if (cl.includes('glicem')) return 'Pressione, Peso, Nutrizione, Farmaci, Digiuno';
+    if (cl.includes('press')) return 'Glicemia, Peso, Nutrizione, Farmaci, Digiuno';
+    if (cl.includes('peso')) return 'Glicemia, Pressione, Nutrizione, Farmaci, Digiuno';
+    if (cl.includes('nutri') || cl.includes('aliment') || cl.includes('cibo')) return 'Glicemia, Pressione, Peso, Farmaci, Digiuno';
+    if (cl.includes('farmac') || cl.includes('terapi') || cl.includes('med')) return 'Glicemia, Pressione, Peso, Nutrizione, Digiuno';
+    if (cl.includes('digiun') || cl.includes('fasting')) return 'Glicemia, Pressione, Peso, Nutrizione, Farmaci';
     return 'altre categorie';
   };
 
   const getCategoryBadgeStyle = (detectedFormat?: string, categoryLabel?: string) => {
     const cat = (categoryLabel || '').toLowerCase();
+    if (detectedFormat === 'fasting' || cat.includes('digiun') || cat.includes('fasting')) {
+      return {
+        bg: 'bg-orange-50',
+        border: 'border-orange-200',
+        badgeBg: 'bg-orange-600',
+        text: 'text-orange-900',
+        subText: 'text-orange-700',
+        iconEmoji: '⏱️',
+        label: 'Digiuno Intermittente'
+      };
+    }
+    if (detectedFormat === 'medication' || cat.includes('farmac') || cat.includes('terapi') || cat.includes('med')) {
+      return {
+        bg: 'bg-indigo-50',
+        border: 'border-indigo-200',
+        badgeBg: 'bg-indigo-600',
+        text: 'text-indigo-900',
+        subText: 'text-indigo-700',
+        iconEmoji: '💊',
+        label: 'Farmaci / Terapie'
+      };
+    }
     if (detectedFormat === 'glucose' || cat.includes('glicem')) {
       return {
         bg: 'bg-teal-50',
@@ -236,11 +216,11 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
     }
     if (detectedFormat === 'weight' || cat.includes('peso')) {
       return {
-        bg: 'bg-indigo-50',
-        border: 'border-indigo-200',
-        badgeBg: 'bg-indigo-600',
-        text: 'text-indigo-900',
-        subText: 'text-indigo-700',
+        bg: 'bg-purple-50',
+        border: 'border-purple-200',
+        badgeBg: 'bg-purple-600',
+        text: 'text-purple-900',
+        subText: 'text-purple-700',
         iconEmoji: '⚖️',
         label: 'Peso Corporeo'
       };
@@ -276,6 +256,71 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
     const catLabel = parseResult.categoryLabel || 'Misurazioni';
     const targetSubTypes = parseResult.targetSubTypes;
     const isSingleCategory = targetSubTypes && targetSubTypes.length > 0 && targetSubTypes.length <= 2;
+
+    // Se stiamo importando sessioni di digiuno, sincronizziamo con savedFastings di ontrackStorage
+    if (parseResult.detectedFormat === 'fasting' || (targetSubTypes && targetSubTypes.includes('sub_fasting'))) {
+      try {
+        const newFastings: SavedFastingRecord[] = parseResult.validRows.map((r, idx) => {
+          const dur = parseFloat(r.value || '16') || 16;
+          return {
+            id: `fast_rec_${r.date}_${r.time}_${idx}`,
+            startDate: r.fastingStartDate || r.date,
+            startTime: r.fastingStartTime || '20:00',
+            endDate: r.fastingEndDate || r.date,
+            endTime: r.fastingEndTime || r.time || '12:00',
+            durationHours: dur,
+            targetHours: r.fastingTargetHours || 16,
+            protocol: r.fastingProtocol || '16:8',
+            startingGlucose: r.fastingStartGlucose !== undefined ? Number(r.fastingStartGlucose) : undefined,
+            endingGlucose: r.fastingEndGlucose !== undefined ? Number(r.fastingEndGlucose) : undefined,
+            note: r.note || 'Importato da tracciato CSV',
+            isCompleted: dur >= 12
+          };
+        });
+
+        if (modeToUse === 'replace') {
+          saveSavedFastings(newFastings);
+        } else {
+          const current = loadSavedFastings();
+          const merged = [...newFastings, ...current.filter(c => !newFastings.some(n => n.startDate === c.startDate && n.startTime === c.startTime))];
+          saveSavedFastings(merged);
+        }
+      } catch (err) {
+        console.error('Error syncing imported fastings:', err);
+      }
+    }
+
+    // Se stiamo importando un catalogo farmaci, sincronizziamo con medications di ontrackStorage
+    if (parseResult.detectedFormat === 'medication' || (targetSubTypes && targetSubTypes.includes('sub_medication'))) {
+      try {
+        const medRows = parseResult.validRows.filter(r => r.medicationName);
+        if (medRows.length > 0) {
+          const newMeds: MedicationItem[] = medRows.map((r, idx) => ({
+            id: `med_imported_${idx}_${Date.now()}`,
+            name: r.medicationName || 'Farmaco',
+            dosage: r.medicationDosage || r.value || '1 dose',
+            schedule: r.medicationSchedule || 'Mattina',
+            instructions: r.medicationInstructions || r.note || '',
+            active: r.medicationActive !== undefined ? r.medicationActive : true
+          }));
+
+          if (modeToUse === 'replace') {
+            saveMedications(newMeds);
+          } else {
+            const current = loadMedications();
+            const merged = [...current];
+            newMeds.forEach(nm => {
+              if (!merged.some(m => m.name.toLowerCase() === nm.name.toLowerCase())) {
+                merged.push(nm);
+              }
+            });
+            saveMedications(merged);
+          }
+        }
+      } catch (err) {
+        console.error('Error syncing imported medications:', err);
+      }
+    }
 
     setTimeout(() => {
       if (typeof onImportComplete === 'function') {
@@ -330,7 +375,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
             <div>
               <h2 className="text-lg font-bold">Importa Misurazioni da CSV / Excel</h2>
               <p className="text-xs text-teal-100">
-                Supporta formato standard con data italiana (es. 14 Ago 2026, 00:20), Pre/Post pasto e note
+                Supporta Glicemie, Pressione, Peso, Nutrizione, Farmaci/Terapie e Digiuno Intermittente
               </p>
             </div>
           </div>
@@ -399,6 +444,107 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                 />
               </div>
 
+              {/* Official CSV Template Downloader Section */}
+              <div className="bg-gradient-to-r from-teal-50/70 via-blue-50/50 to-orange-50/70 border border-teal-200/80 rounded-2xl p-4 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Download className="w-4 h-4 text-teal-700 shrink-0" />
+                    <span className="text-xs font-bold text-stone-800">
+                      Scarica Tracciati e Modelli CSV Precompilati:
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-teal-700 font-semibold bg-white/80 px-2 py-0.5 rounded-full border border-teal-200">
+                    Compatibili al 100%
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  <button
+                    type="button"
+                    onClick={downloadGlucoseCsvTemplate}
+                    className="p-2 bg-white hover:bg-teal-50 border border-stone-200 hover:border-teal-400 rounded-xl text-left transition-all group shadow-2xs flex flex-col justify-between"
+                  >
+                    <div className="text-[11px] font-bold text-teal-800 group-hover:text-teal-900 flex items-center space-x-1">
+                      <span>🩸</span>
+                      <span className="truncate">Glicemie</span>
+                    </div>
+                    <div className="text-[9px] text-stone-500 mt-1 flex items-center text-teal-600 font-semibold">
+                      <Download className="w-2.5 h-2.5 mr-0.5" /> .csv
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadPressureCsvTemplate}
+                    className="p-2 bg-white hover:bg-rose-50 border border-stone-200 hover:border-rose-400 rounded-xl text-left transition-all group shadow-2xs flex flex-col justify-between"
+                  >
+                    <div className="text-[11px] font-bold text-rose-800 group-hover:text-rose-900 flex items-center space-x-1">
+                      <span>❤️</span>
+                      <span className="truncate">Pressione</span>
+                    </div>
+                    <div className="text-[9px] text-stone-500 mt-1 flex items-center text-rose-600 font-semibold">
+                      <Download className="w-2.5 h-2.5 mr-0.5" /> .csv
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadWeightCsvTemplate}
+                    className="p-2 bg-white hover:bg-purple-50 border border-stone-200 hover:border-purple-400 rounded-xl text-left transition-all group shadow-2xs flex flex-col justify-between"
+                  >
+                    <div className="text-[11px] font-bold text-purple-800 group-hover:text-purple-900 flex items-center space-x-1">
+                      <span>⚖️</span>
+                      <span className="truncate">Peso</span>
+                    </div>
+                    <div className="text-[9px] text-stone-500 mt-1 flex items-center text-purple-600 font-semibold">
+                      <Download className="w-2.5 h-2.5 mr-0.5" /> .csv
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadNutritionCsvTemplate}
+                    className="p-2 bg-white hover:bg-amber-50 border border-stone-200 hover:border-amber-400 rounded-xl text-left transition-all group shadow-2xs flex flex-col justify-between"
+                  >
+                    <div className="text-[11px] font-bold text-amber-800 group-hover:text-amber-900 flex items-center space-x-1">
+                      <span>🥗</span>
+                      <span className="truncate">Nutrizione</span>
+                    </div>
+                    <div className="text-[9px] text-stone-500 mt-1 flex items-center text-amber-600 font-semibold">
+                      <Download className="w-2.5 h-2.5 mr-0.5" /> .csv
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadMedicationCsvTemplate}
+                    className="p-2 bg-white hover:bg-indigo-50 border border-stone-200 hover:border-indigo-400 rounded-xl text-left transition-all group shadow-2xs flex flex-col justify-between"
+                  >
+                    <div className="text-[11px] font-bold text-indigo-800 group-hover:text-indigo-900 flex items-center space-x-1">
+                      <span>💊</span>
+                      <span className="truncate">Farmaci</span>
+                    </div>
+                    <div className="text-[9px] text-stone-500 mt-1 flex items-center text-indigo-600 font-semibold">
+                      <Download className="w-2.5 h-2.5 mr-0.5" /> .csv
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadFastingCsvTemplate}
+                    className="p-2 bg-white hover:bg-orange-50 border border-stone-200 hover:border-orange-400 rounded-xl text-left transition-all group shadow-2xs flex flex-col justify-between"
+                  >
+                    <div className="text-[11px] font-bold text-orange-800 group-hover:text-orange-900 flex items-center space-x-1">
+                      <span>⏱️</span>
+                      <span className="truncate">Digiuno</span>
+                    </div>
+                    <div className="text-[9px] text-stone-500 mt-1 flex items-center text-orange-600 font-semibold">
+                      <Download className="w-2.5 h-2.5 mr-0.5" /> .csv
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Sample Data Fast Test Buttons */}
               <div className="bg-stone-50 border border-stone-200 rounded-xl p-3.5 space-y-2.5">
                 <div className="flex items-center space-x-2">
@@ -407,14 +553,14 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                     Formati di esempio pronti per il test:
                   </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                   <button
                     type="button"
                     onClick={() => handleLoadPreset('glucose')}
                     className="p-2 bg-white hover:bg-teal-50 border border-stone-200 hover:border-teal-400 rounded-lg text-left transition-all group"
                   >
                     <div className="text-[11px] font-bold text-teal-800 group-hover:text-teal-900">🩸 Glicemie</div>
-                    <div className="text-[9px] text-stone-500">7 letture Pre/Post pasto</div>
+                    <div className="text-[9px] text-stone-500">7 letture Pre/Post</div>
                   </button>
 
                   <button
@@ -423,16 +569,16 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                     className="p-2 bg-white hover:bg-rose-50 border border-stone-200 hover:border-rose-400 rounded-lg text-left transition-all group"
                   >
                     <div className="text-[11px] font-bold text-rose-800 group-hover:text-rose-900">❤️ Pressione</div>
-                    <div className="text-[9px] text-stone-500">3 valori (es. 94 106 95)</div>
+                    <div className="text-[9px] text-stone-500">Sistolica / Battiti</div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleLoadPreset('weight')}
-                    className="p-2 bg-white hover:bg-indigo-50 border border-stone-200 hover:border-indigo-400 rounded-lg text-left transition-all group"
+                    className="p-2 bg-white hover:bg-purple-50 border border-stone-200 hover:border-purple-400 rounded-lg text-left transition-all group"
                   >
-                    <div className="text-[11px] font-bold text-indigo-800 group-hover:text-indigo-900">⚖️ Peso</div>
-                    <div className="text-[9px] text-stone-500">2 colonne (h 19:27)</div>
+                    <div className="text-[11px] font-bold text-purple-800 group-hover:text-purple-900">⚖️ Peso</div>
+                    <div className="text-[9px] text-stone-500">Trend storico (kg)</div>
                   </button>
 
                   <button
@@ -441,7 +587,25 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                     className="p-2 bg-white hover:bg-amber-50 border border-stone-200 hover:border-amber-400 rounded-lg text-left transition-all group"
                   >
                     <div className="text-[11px] font-bold text-amber-800 group-hover:text-amber-900">🥗 Nutrizione</div>
-                    <div className="text-[9px] text-stone-500">Calorie, GDA, Macro</div>
+                    <div className="text-[9px] text-stone-500">Calorie, Macro</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleLoadPreset('medication')}
+                    className="p-2 bg-white hover:bg-indigo-50 border border-stone-200 hover:border-indigo-400 rounded-lg text-left transition-all group"
+                  >
+                    <div className="text-[11px] font-bold text-indigo-800 group-hover:text-indigo-900">💊 Farmaci</div>
+                    <div className="text-[9px] text-stone-500">Dosi e orari</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleLoadPreset('fasting')}
+                    className="p-2 bg-white hover:bg-orange-50 border border-stone-200 hover:border-orange-400 rounded-lg text-left transition-all group"
+                  >
+                    <div className="text-[11px] font-bold text-orange-800 group-hover:text-orange-900">⏱️ Digiuno</div>
+                    <div className="text-[9px] text-stone-500">16:8, chetosi</div>
                   </button>
                 </div>
               </div>
@@ -659,52 +823,187 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                   <div className="border border-stone-200 rounded-xl overflow-hidden shadow-2xs max-h-72 overflow-y-auto">
                     <table className="w-full text-xs text-left">
                       <thead className="bg-stone-100 border-b border-stone-200 text-stone-600 font-bold sticky top-0">
-                        <tr>
-                          <th className="p-2.5">Data & Ora</th>
-                          <th className="p-2.5">Tipo</th>
-                          <th className="p-2.5 text-right">Valore</th>
-                          <th className="p-2.5">Timing Pasto</th>
-                          <th className="p-2.5">Categoria Assegnata</th>
-                          <th className="p-2.5">Note</th>
-                        </tr>
+                        {parseResult.detectedFormat === 'fasting' ? (
+                          <tr>
+                            <th className="p-2.5">Data & Orario</th>
+                            <th className="p-2.5">Protocollo</th>
+                            <th className="p-2.5 text-right">Durata (Ore)</th>
+                            <th className="p-2.5">Rottura (Fine)</th>
+                            <th className="p-2.5 text-center">Glicemia Inizio/Fine</th>
+                            <th className="p-2.5">Note / Dettagli</th>
+                          </tr>
+                        ) : parseResult.detectedFormat === 'medication' ? (
+                          <tr>
+                            <th className="p-2.5">Nome Farmaco</th>
+                            <th className="p-2.5">Dosaggio</th>
+                            <th className="p-2.5">Orario / Frequenza</th>
+                            <th className="p-2.5">Istruzioni</th>
+                            <th className="p-2.5 text-center">Stato</th>
+                            <th className="p-2.5">Categoria</th>
+                          </tr>
+                        ) : parseResult.detectedFormat === 'pressure' ? (
+                          <tr>
+                            <th className="p-2.5">Data & Ora</th>
+                            <th className="p-2.5 text-right">Sistolica / Diastolica</th>
+                            <th className="p-2.5 text-center">Battiti (bpm)</th>
+                            <th className="p-2.5">Timing Pasto</th>
+                            <th className="p-2.5">Categoria</th>
+                            <th className="p-2.5">Note</th>
+                          </tr>
+                        ) : (
+                          <tr>
+                            <th className="p-2.5">Data & Ora</th>
+                            <th className="p-2.5">Tipo</th>
+                            <th className="p-2.5 text-right">Valore</th>
+                            <th className="p-2.5">Timing Pasto</th>
+                            <th className="p-2.5">Categoria Assegnata</th>
+                            <th className="p-2.5">Note</th>
+                          </tr>
+                        )}
                       </thead>
                       <tbody className="divide-y divide-stone-100 bg-white">
                         {parseResult.validRows.map((row) => (
                           <tr key={row.id} className="hover:bg-stone-50/80 transition-colors">
-                            <td className="p-2.5 font-mono text-stone-800 whitespace-nowrap">
-                              <span className="font-bold">{row.date}</span>
-                              <span className="text-stone-500 ml-1.5">{row.time}</span>
-                            </td>
-                            <td className="p-2.5 text-stone-700 whitespace-nowrap">
-                              {row.subTypeName}
-                            </td>
-                            <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap">
-                              <span className="text-base text-[#1d8998]">{row.value}</span>
-                              <span className="text-[10px] text-stone-500 ml-1">{row.unit}</span>
-                            </td>
-                            <td className="p-2.5 whitespace-nowrap">
-                              {row.mealTiming === 'pre' && (
-                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold">
-                                  <WholeAppleIcon className="w-3.5 h-3.5 text-amber-900" />
-                                  <span>Pre pasto</span>
-                                </span>
-                              )}
-                              {row.mealTiming === 'post' && (
-                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] font-bold">
-                                  <AppleCoreIcon className="w-3.5 h-3.5 text-emerald-900" />
-                                  <span>Post pasto</span>
-                                </span>
-                              )}
-                              {!row.mealTiming && <span className="text-stone-400">-</span>}
-                            </td>
-                            <td className="p-2.5 text-stone-700 whitespace-nowrap font-medium">
-                              <span className="px-2 py-0.5 bg-stone-100 rounded text-[11px] text-stone-700 border border-stone-200">
-                                {row.categoryName}
-                              </span>
-                            </td>
-                            <td className="p-2.5 text-stone-600 max-w-xs truncate italic">
-                              {row.note || '-'}
-                            </td>
+                            {parseResult.detectedFormat === 'fasting' ? (
+                              <>
+                                <td className="p-2.5 font-mono text-stone-800 whitespace-nowrap">
+                                  <span className="font-bold">{row.date}</span>
+                                  <span className="text-orange-600 font-semibold ml-1.5">{row.fastingStartTime || row.time}</span>
+                                </td>
+                                <td className="p-2.5 whitespace-nowrap">
+                                  <span className="px-2 py-0.5 rounded-md bg-orange-100 text-orange-900 font-bold border border-orange-200">
+                                    {row.fastingProtocol || '16:8'}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap text-orange-700">
+                                  <span className="text-base">{row.value}</span>
+                                  <span className="text-[10px] text-stone-500 ml-1">ore</span>
+                                </td>
+                                <td className="p-2.5 font-mono text-stone-700 whitespace-nowrap">
+                                  {row.fastingEndTime || '-'}
+                                </td>
+                                <td className="p-2.5 text-center whitespace-nowrap font-mono text-xs">
+                                  {row.fastingStartGlucose || row.fastingEndGlucose ? (
+                                    <span className="px-2 py-0.5 bg-teal-50 text-teal-900 rounded border border-teal-200">
+                                      {row.fastingStartGlucose ?? '-'} → {row.fastingEndGlucose ?? '-'} mg/dL
+                                    </span>
+                                  ) : (
+                                    <span className="text-stone-400">-</span>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-stone-600 max-w-xs truncate italic">
+                                  {row.note || '-'}
+                                </td>
+                              </>
+                            ) : parseResult.detectedFormat === 'medication' ? (
+                              <>
+                                <td className="p-2.5 font-bold text-stone-900 whitespace-nowrap flex items-center space-x-1.5">
+                                  <span className="text-indigo-600">💊</span>
+                                  <span>{row.medicationName || row.subTypeName}</span>
+                                </td>
+                                <td className="p-2.5 font-mono font-bold text-indigo-700 whitespace-nowrap">
+                                  {row.medicationDosage || row.value} {row.unit}
+                                </td>
+                                <td className="p-2.5 text-stone-700 whitespace-nowrap">
+                                  <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 rounded text-indigo-900 font-medium">
+                                    {row.medicationSchedule || row.categoryName}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-stone-600 max-w-xs truncate italic">
+                                  {row.medicationInstructions || row.note || '-'}
+                                </td>
+                                <td className="p-2.5 text-center whitespace-nowrap">
+                                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                                    row.medicationActive !== false 
+                                      ? 'bg-emerald-100 text-emerald-800' 
+                                      : 'bg-stone-100 text-stone-500'
+                                  }`}>
+                                    {row.medicationActive !== false ? 'Attivo' : 'Sospeso'}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-stone-700 whitespace-nowrap font-medium">
+                                  <span className="px-2 py-0.5 bg-stone-100 rounded text-[11px] text-stone-700 border border-stone-200">
+                                    {row.categoryName}
+                                  </span>
+                                </td>
+                              </>
+                            ) : parseResult.detectedFormat === 'pressure' ? (
+                              <>
+                                <td className="p-2.5 font-mono text-stone-800 whitespace-nowrap">
+                                  <span className="font-bold">{row.date}</span>
+                                  <span className="text-stone-500 ml-1.5">{row.time}</span>
+                                </td>
+                                <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap text-rose-700">
+                                  <span className="text-base">{row.systolic || row.value}</span>
+                                  <span className="text-stone-400 mx-0.5">/</span>
+                                  <span className="text-base">{row.diastolic || '-'}</span>
+                                  <span className="text-[10px] text-stone-500 ml-1">mmHg</span>
+                                </td>
+                                <td className="p-2.5 text-center font-mono font-bold text-rose-600 whitespace-nowrap">
+                                  {row.pulse ? `${row.pulse} bpm` : '-'}
+                                </td>
+                                <td className="p-2.5 whitespace-nowrap">
+                                  {row.mealTiming === 'pre' && (
+                                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold">
+                                      <WholeAppleIcon className="w-3.5 h-3.5 text-amber-900" />
+                                      <span>Pre pasto</span>
+                                    </span>
+                                  )}
+                                  {row.mealTiming === 'post' && (
+                                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] font-bold">
+                                      <AppleCoreIcon className="w-3.5 h-3.5 text-emerald-900" />
+                                      <span>Post pasto</span>
+                                    </span>
+                                  )}
+                                  {!row.mealTiming && <span className="text-stone-400">-</span>}
+                                </td>
+                                <td className="p-2.5 text-stone-700 whitespace-nowrap font-medium">
+                                  <span className="px-2 py-0.5 bg-stone-100 rounded text-[11px] text-stone-700 border border-stone-200">
+                                    {row.categoryName}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-stone-600 max-w-xs truncate italic">
+                                  {row.note || '-'}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="p-2.5 font-mono text-stone-800 whitespace-nowrap">
+                                  <span className="font-bold">{row.date}</span>
+                                  <span className="text-stone-500 ml-1.5">{row.time}</span>
+                                </td>
+                                <td className="p-2.5 text-stone-700 whitespace-nowrap">
+                                  {row.subTypeName}
+                                </td>
+                                <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap">
+                                  <span className="text-base text-[#1d8998]">{row.value}</span>
+                                  <span className="text-[10px] text-stone-500 ml-1">{row.unit}</span>
+                                </td>
+                                <td className="p-2.5 whitespace-nowrap">
+                                  {row.mealTiming === 'pre' && (
+                                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold">
+                                      <WholeAppleIcon className="w-3.5 h-3.5 text-amber-900" />
+                                      <span>Pre pasto</span>
+                                    </span>
+                                  )}
+                                  {row.mealTiming === 'post' && (
+                                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] font-bold">
+                                      <AppleCoreIcon className="w-3.5 h-3.5 text-emerald-900" />
+                                      <span>Post pasto</span>
+                                    </span>
+                                  )}
+                                  {!row.mealTiming && <span className="text-stone-400">-</span>}
+                                </td>
+                                <td className="p-2.5 text-stone-700 whitespace-nowrap font-medium">
+                                  <span className="px-2 py-0.5 bg-stone-100 rounded text-[11px] text-stone-700 border border-stone-200">
+                                    {row.categoryName}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-stone-600 max-w-xs truncate italic">
+                                  {row.note || '-'}
+                                </td>
+                              </>
+                            )}
                           </tr>
                         ))}
                       </tbody>

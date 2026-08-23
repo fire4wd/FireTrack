@@ -53,6 +53,18 @@ export const TimePickerModal: React.FC<TimePickerModalProps> = ({
     }
   }, [isOpen, timeSource]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const formatHours = (h: number) => String(h).padStart(2, '0');
@@ -99,21 +111,24 @@ export const TimePickerModal: React.FC<TimePickerModalProps> = ({
     { label: '12:30 (Pranzo)', h: 12, m: 30 },
     { label: '16:30 (Merenda)', h: 16, m: 30 },
     { label: '19:30 (Pre-cena)', h: 19, m: 30 },
-    { label: '20:30 (Cena)', h: 20, m: 30 },
+    { label: '20:00 (Cena)', h: 20, m: 0 },
+    { label: '20:30 (Post-cena)', h: 20, m: 30 },
     { label: '23:00 (Notte)', h: 23, m: 0 },
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0" 
-        onClick={onClose} 
-        aria-hidden="true" 
-      />
-
+    <div 
+      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
       {/* Modal Container */}
-      <div className="relative w-full max-w-md bg-white dark:bg-[#1a1d24] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-stone-300 dark:border-stone-700 overflow-hidden z-10 animate-in slide-in-from-bottom-4 duration-200">
+      <div 
+        className="relative w-full max-w-md bg-white dark:bg-[#1a1d24] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-stone-300 dark:border-stone-700 overflow-hidden z-10 animate-in slide-in-from-bottom-4 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Mobile handle */}
         <div className="sm:hidden flex justify-center pt-2 pb-1">

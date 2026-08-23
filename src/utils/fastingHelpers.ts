@@ -147,6 +147,93 @@ export const FASTING_PROTOCOLS = [
   { id: '72h', label: '72h', hours: 72 }
 ];
 
+export const FASTING_PLANS = FASTING_PROTOCOLS;
+
+/**
+ * Calculates end date (YYYY-MM-DD) and end time (HH:mm) from start date, start time, and target hours (piano).
+ */
+export function calculateFastingEndDateTime(
+  startDateStr: string,
+  startTimeStr: string,
+  targetHours: number
+): { endDate: string; endTime: string } {
+  const startObj = parseEntryDateTime(startDateStr, startTimeStr) || new Date();
+  const endMs = startObj.getTime() + (Number(targetHours) || 16) * 3600 * 1000;
+  const endObj = new Date(endMs);
+
+  const y = endObj.getFullYear();
+  const m = String(endObj.getMonth() + 1).padStart(2, '0');
+  const d = String(endObj.getDate()).padStart(2, '0');
+  const hh = String(endObj.getHours()).padStart(2, '0');
+  const mm = String(endObj.getMinutes()).padStart(2, '0');
+
+  return {
+    endDate: `${y}-${m}-${d}`,
+    endTime: `${hh}:${mm}`
+  };
+}
+
+/**
+ * Extracts local date as 'YYYY-MM-DD' from a Date object or ISO / string.
+ */
+export function getLocalDateString(d: Date | string | number): string {
+  if (!d) {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  let dateObj: Date;
+  if (typeof d === 'number') {
+    dateObj = new Date(d);
+  } else if (typeof d === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d.trim())) {
+      return d.trim();
+    }
+    dateObj = parseEntryDateTime(d, '12:00') || new Date(d);
+  } else {
+    dateObj = d;
+  }
+  if (isNaN(dateObj.getTime())) {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Extracts local time as 'HH:mm' in 24h format from a Date object or ISO / string.
+ */
+export function getLocalTimeString(d: Date | string | number): string {
+  if (!d) return '20:00';
+  let dateObj: Date;
+  if (typeof d === 'number') {
+    dateObj = new Date(d);
+  } else if (typeof d === 'string') {
+    const trimmed = d.trim();
+    if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
+      const [h, m] = trimmed.split(':');
+      return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+    }
+    dateObj = new Date(trimmed);
+  } else {
+    dateObj = d;
+  }
+  if (isNaN(dateObj.getTime())) {
+    return '20:00';
+  }
+  const hours = String(dateObj.getHours()).padStart(2, '0');
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 export function getFastingStageByHours(elapsedHours: number): FastingLevelDefinition {
   const stage = FASTING_METABOLIC_LEVELS.find(
     (lvl) => elapsedHours >= lvl.minHours && elapsedHours < lvl.maxHours
@@ -167,8 +254,23 @@ export function parseProtocolTargetHours(proto: string): number {
   return 16;
 }
 
+const ITALIAN_MONTHS_MAP: { [key: string]: number } = {
+  gen: 1, genn: 1, gennaio: 1,
+  feb: 2, febb: 2, febbraio: 2,
+  mar: 3, marz: 3, marzo: 3,
+  apr: 4, apri: 4, aprile: 4,
+  mag: 5, magg: 5, maggio: 5,
+  giu: 6, giug: 6, giugno: 6,
+  lug: 7, lugl: 7, luglio: 7,
+  ago: 8, agos: 8, agosto: 8,
+  set: 9, sett: 9, settembre: 9,
+  ott: 10, otto: 10, ottobre: 10,
+  nov: 11, nove: 11, novembre: 11,
+  dic: 12, dice: 12, dicembre: 12
+};
+
 /**
- * Parses any date string (ISO 'YYYY-MM-DD', Italian 'DD/MM/YY' or 'DD/MM/YYYY') and time string ('HH:mm') into a Date object.
+ * Parses any date string (ISO 'YYYY-MM-DD', Italian 'DD/MM/YY', 'DD/MM/YYYY', '14 Ago 2026') and time string ('HH:mm') into a Date object.
  */
 export function parseEntryDateTime(dateStr: string, timeStr?: string): Date | null {
   if (!dateStr) return null;
@@ -178,22 +280,39 @@ export function parseEntryDateTime(dateStr: string, timeStr?: string): Date | nu
   const h = partsTime.length > 0 && !isNaN(Number(partsTime[0])) ? Number(partsTime[0]) : 12;
   const m = partsTime.length > 1 && !isNaN(Number(partsTime[1])) ? Number(partsTime[1]) : 0;
 
-  // Pattern YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
-    const [year, month, day] = cleanDate.split('-').map(Number);
-    return new Date(year, month - 1, day, h, m, 0);
+  // Pattern YYYY-MM-DD or YYYY-MM-DDTHH:mm
+  if (/^\d{4}-\d{2}-\d{2}/.test(cleanDate)) {
+    const y = parseInt(cleanDate.slice(0, 4), 10);
+    const mo = parseInt(cleanDate.slice(5, 7), 10) - 1;
+    const d = parseInt(cleanDate.slice(8, 10), 10);
+    return new Date(y, mo, d, h, m, 0);
   }
 
-  // Pattern DD/MM/YY or DD/MM/YYYY
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cleanDate)) {
-    const parts = cleanDate.split('/').map(Number);
-    let year = parts[2];
+  // Pattern DD/MM/YY, DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+  const slashOrDashMatch = cleanDate.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+  if (slashOrDashMatch) {
+    const day = parseInt(slashOrDashMatch[1], 10);
+    const month = parseInt(slashOrDashMatch[2], 10) - 1;
+    let year = parseInt(slashOrDashMatch[3], 10);
     if (year < 100) {
       year += year > 50 ? 1900 : 2000;
     }
-    const month = parts[1] - 1;
-    const day = parts[0];
     return new Date(year, month, day, h, m, 0);
+  }
+
+  // Pattern "14 Ago 2026" or "14 Agosto 2026" or "14-Ago-2026"
+  const textMonthMatch = cleanDate.match(/^(\d{1,2})\s*[\s\-\/\.]\s*([a-zA-Zàèéìòù]+)\s*[\s\-\/\.]\s*(\d{2,4})/i);
+  if (textMonthMatch) {
+    const day = parseInt(textMonthMatch[1], 10);
+    const mStr = textMonthMatch[2].toLowerCase().trim();
+    let year = parseInt(textMonthMatch[3], 10);
+    if (year < 100) {
+      year += year > 50 ? 1900 : 2000;
+    }
+    const mNum = ITALIAN_MONTHS_MAP[mStr] || ITALIAN_MONTHS_MAP[mStr.slice(0, 3)];
+    if (mNum !== undefined) {
+      return new Date(year, mNum - 1, day, h, m, 0);
+    }
   }
 
   const d = new Date(cleanDate);
@@ -202,7 +321,7 @@ export function parseEntryDateTime(dateStr: string, timeStr?: string): Date | nu
 }
 
 /**
- * Converts Italian format DD/MM/YY or DD/MM/YYYY or Date to ISO format YYYY-MM-DD
+ * Converts Italian format DD/MM/YY, DD/MM/YYYY, '14 Ago 2026' or Date to ISO format YYYY-MM-DD
  */
 export function formatDateToISO(dateStr: string): string {
   if (!dateStr) {
@@ -212,20 +331,18 @@ export function formatDateToISO(dateStr: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
     return clean;
   }
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(clean)) {
-    const parts = clean.split('/').map(Number);
-    let year = parts[2];
-    if (year < 100) {
-      year += year > 50 ? 1900 : 2000;
-    }
-    const month = String(parts[1]).padStart(2, '0');
-    const day = String(parts[0]).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(clean)) {
+    return clean.slice(0, 10);
   }
-  const d = new Date(clean);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString().slice(0, 10);
+  
+  const parsed = parseEntryDateTime(clean, '12:00');
+  if (parsed && !isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
+
   return new Date().toISOString().slice(0, 10);
 }
 
@@ -241,21 +358,15 @@ export function formatDateToItalian(dateStr: string, fullYear: boolean = false):
     return `${day}/${month}/${year}`;
   }
   const clean = dateStr.trim();
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(clean)) {
-    return clean;
-  }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
-    const [year, month, day] = clean.split('-');
-    const y = fullYear ? year : year.slice(-2);
-    return `${day}/${month}/${y}`;
-  }
-  const d = new Date(clean);
-  if (!isNaN(d.getTime())) {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = fullYear ? String(d.getFullYear()) : String(d.getFullYear()).slice(-2);
+  
+  const parsed = parseEntryDateTime(clean, '12:00');
+  if (parsed && !isNaN(parsed.getTime())) {
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const year = fullYear ? String(parsed.getFullYear()) : String(parsed.getFullYear()).slice(-2);
     return `${day}/${month}/${year}`;
   }
+  
   return clean;
 }
 
