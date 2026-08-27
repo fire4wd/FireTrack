@@ -11,118 +11,13 @@ async function captureElementImage(element: HTMLElement, orientation: 'portrait'
   const targetWidth = Math.max(element.scrollWidth, element.offsetWidth, minTargetWidth);
   const targetHeight = Math.max(element.scrollHeight, element.offsetHeight, 300);
 
-  // Primary capture: html2canvas with dedicated onclone styling
-  try {
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      width: targetWidth,
-      height: targetHeight,
-      windowWidth: Math.max(targetWidth, 1200),
-      onclone: (_clonedDoc, clonedEl) => {
-        _clonedDoc.documentElement.classList.remove('dark');
-        _clonedDoc.body.classList.remove('dark');
-        _clonedDoc.documentElement.classList.add('pdf-export-mode');
-        _clonedDoc.body.classList.add('pdf-export-mode');
-        clonedEl.classList.remove('dark');
-        clonedEl.classList.add('pdf-export-mode');
-        clonedEl.style.position = 'static';
-        clonedEl.style.left = '0px';
-        clonedEl.style.top = '0px';
-        clonedEl.style.transform = 'none';
-        clonedEl.style.width = `${targetWidth}px`;
-        clonedEl.style.maxWidth = 'none';
-        clonedEl.style.display = 'block';
-        clonedEl.style.visibility = 'visible';
-        clonedEl.style.backgroundColor = '#ffffff';
-        clonedEl.style.color = '#000000';
-
-        // 1. Force white background & black text on all container / table elements
-        const allElements = clonedEl.querySelectorAll<HTMLElement>('*');
-        allElements.forEach((el) => {
-          el.classList.remove('dark');
-          el.style.setProperty('text-shadow', 'none', 'important');
-        });
-
-        const allContainers = clonedEl.querySelectorAll<HTMLElement>('table, thead, tbody, tr, th, td, div, p, span, h1, h2, h3, h4');
-        allContainers.forEach((el) => {
-          if (!el.classList.contains('blood-badge') && !el.hasAttribute('data-blood-status')) {
-            el.style.setProperty('background-color', '#ffffff', 'important');
-            el.style.setProperty('background', '#ffffff', 'important');
-          }
-          el.style.setProperty('color', '#000000', 'important');
-          el.style.setProperty('-webkit-text-fill-color', '#000000', 'important');
-        });
-
-        // 2. Direct DOM enforcement for blood test badges: White BG, Black Text, Colored Border
-        const allBadges = clonedEl.querySelectorAll<HTMLElement>('.blood-badge, .blood-badge-normal, .blood-badge-out, [data-blood-status]');
-        allBadges.forEach((badge) => {
-          const isGreen = badge.classList.contains('blood-badge-normal') || badge.getAttribute('data-blood-status') === 'normal';
-          const borderColor = isGreen ? '#16a34a' : '#dc2626';
-
-          badge.style.setProperty('background-color', '#ffffff', 'important');
-          badge.style.setProperty('background', '#ffffff', 'important');
-          badge.style.setProperty('border', `2px solid ${borderColor}`, 'important');
-          badge.style.setProperty('border-color', borderColor, 'important');
-          badge.style.setProperty('border-width', '2px', 'important');
-          badge.style.setProperty('border-style', 'solid', 'important');
-          badge.style.setProperty('color', '#000000', 'important');
-          badge.style.setProperty('-webkit-text-fill-color', '#000000', 'important');
-          badge.style.setProperty('box-shadow', 'none', 'important');
-
-          const badgeChildren = badge.querySelectorAll<HTMLElement>('*');
-          badgeChildren.forEach((child) => {
-            child.style.setProperty('color', '#000000', 'important');
-            child.style.setProperty('-webkit-text-fill-color', '#000000', 'important');
-            child.style.setProperty('background-color', 'transparent', 'important');
-            child.style.setProperty('background', 'transparent', 'important');
-          });
-        });
-
-        // 3. Metric cards borders and white bg
-        const metricCards = clonedEl.querySelectorAll<HTMLElement>('.blood-metric-card');
-        metricCards.forEach((card) => {
-          card.style.setProperty('background-color', '#ffffff', 'important');
-          card.style.setProperty('background', '#ffffff', 'important');
-          card.style.setProperty('border', '1.5px solid #cbd5e1', 'important');
-        });
-
-        // 4. Legend boxes and text enforcement
-        const greenLegendBox = clonedEl.querySelectorAll<HTMLElement>('.blood-legend-green-box');
-        greenLegendBox.forEach((b) => {
-          b.style.setProperty('background-color', '#ffffff', 'important');
-          b.style.setProperty('background', '#ffffff', 'important');
-          b.style.setProperty('border', '2px solid #16a34a', 'important');
-          b.style.setProperty('border-color', '#16a34a', 'important');
-        });
-
-        const redLegendBox = clonedEl.querySelectorAll<HTMLElement>('.blood-legend-red-box');
-        redLegendBox.forEach((b) => {
-          b.style.setProperty('background-color', '#ffffff', 'important');
-          b.style.setProperty('background', '#ffffff', 'important');
-          b.style.setProperty('border', '2px solid #dc2626', 'important');
-          b.style.setProperty('border-color', '#dc2626', 'important');
-        });
-      },
-      ignoreElements: (el) => {
-        return el.classList?.contains('print:hidden') || el.classList?.contains('no-print');
-      }
-    });
-    return canvas.toDataURL('image/png', 0.98);
-  } catch (canvasErr) {
-    console.warn('html2canvas capture failed, trying html-to-image toPng fallback:', canvasErr);
-  }
-
-  // Fallback attempt: html-to-image (toPng)
+  // First attempt: html-to-image (modern, high-fidelity SVG foreignObject)
   try {
     const dataUrl = await toPng(element, {
       quality: 0.98,
       pixelRatio: 2,
       backgroundColor: '#ffffff',
-      cacheBust: false,
-      fontEmbedCSS: '',
+      cacheBust: true,
       skipAutoScale: false,
       width: targetWidth,
       height: targetHeight,
@@ -147,11 +42,43 @@ async function captureElementImage(element: HTMLElement, orientation: 'portrait'
       return dataUrl;
     }
   } catch (err) {
-    console.error('All PDF image capture methods failed:', err);
-    throw new Error('Impossibile effettuare il rendering visivo del report per la generazione del PDF.');
+    console.warn('html-to-image toPng failed, trying html2canvas fallback:', err);
   }
 
-  throw new Error('Impossibile generare l\'immagine del report per il PDF.');
+  // Fallback attempt: html2canvas
+  try {
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      width: targetWidth,
+      height: targetHeight,
+      windowWidth: Math.max(targetWidth, 1200),
+      onclone: (_clonedDoc, clonedEl) => {
+        _clonedDoc.documentElement.classList.add('pdf-export-mode');
+        _clonedDoc.body.classList.add('pdf-export-mode');
+        clonedEl.classList.add('pdf-export-mode');
+        clonedEl.style.position = 'static';
+        clonedEl.style.left = '0px';
+        clonedEl.style.top = '0px';
+        clonedEl.style.transform = 'none';
+        clonedEl.style.width = `${targetWidth}px`;
+        clonedEl.style.maxWidth = 'none';
+        clonedEl.style.display = 'block';
+        clonedEl.style.visibility = 'visible';
+        clonedEl.style.backgroundColor = '#ffffff';
+        clonedEl.style.color = '#0f172a';
+      },
+      ignoreElements: (el) => {
+        return el.classList?.contains('print:hidden') || el.classList?.contains('no-print');
+      }
+    });
+    return canvas.toDataURL('image/png', 0.98);
+  } catch (canvasErr) {
+    console.error('html2canvas also failed:', canvasErr);
+    throw new Error('Impossibile effettuare il rendering visivo del report per la generazione del PDF.');
+  }
 }
 
 /**
@@ -270,11 +197,6 @@ export async function exportElementToPdf(
 
   const safeFilename = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
 
-  // Save whether dark mode was active and temporarily remove dark class during PDF capture
-  const wasDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
-  document.documentElement.classList.remove('dark');
-  document.body.classList.remove('dark');
-
   // Enable white PDF export theme on root DOM and wait a frame for styles to paint
   document.documentElement.classList.add('pdf-export-mode');
   document.body.classList.add('pdf-export-mode');
@@ -282,15 +204,11 @@ export async function exportElementToPdf(
 
   try {
     // Small delay to allow the browser layout engine to paint .pdf-export-mode styles
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 80));
 
     // Check if the container has dedicated child sections with specified orientations
     const sectionNodes = element.querySelectorAll<HTMLElement>('[data-pdf-section="true"]');
     const sections: HTMLElement[] = sectionNodes.length > 0 ? Array.from(sectionNodes) : [element];
-
-    for (const s of sections) {
-      s.classList.add('pdf-export-mode');
-    }
 
     const elementOrientation = (element.getAttribute('data-pdf-orientation') as 'portrait' | 'landscape') || null;
     const firstSectionOrientation = (sections[0].getAttribute('data-pdf-orientation') as 'portrait' | 'landscape') || null;
@@ -336,10 +254,5 @@ export async function exportElementToPdf(
     document.documentElement.classList.remove('pdf-export-mode');
     document.body.classList.remove('pdf-export-mode');
     element.classList.remove('pdf-export-mode');
-
-    if (wasDark) {
-      document.documentElement.classList.add('dark');
-      document.body.classList.add('dark');
-    }
   }
 }

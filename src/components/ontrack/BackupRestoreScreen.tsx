@@ -25,10 +25,9 @@ import {
   Trash2,
   Sliders,
   CheckCircle2,
-  FolderOpen,
-  Pill
+  FolderOpen
 } from 'lucide-react';
-import { LogEntryItem, HealthCategory, HealthSubType, BloodTestParameter, BloodTestRecord, NextcloudConfig, UserSettings, MedicationItem } from '../../types/ontrack';
+import { LogEntryItem, HealthCategory, HealthSubType, BloodTestParameter, BloodTestRecord, NextcloudConfig, UserSettings } from '../../types/ontrack';
 import { 
   downloadBackupJSON, 
   shareBackupJSON,
@@ -38,17 +37,17 @@ import {
   getBackupJSONString,
   loadUserSettings,
   saveUserSettings,
-  defaultNextcloudConfig,
-  loadMedications,
-  saveMedications
+  defaultNextcloudConfig
 } from '../../utils/ontrackStorage';
-import { MedicationsImportExportModal } from './MedicationsImportExportModal';
 import { 
   downloadRawSqliteDbFile, 
   shareRawSqliteDbFile, 
   getRawSqliteDbBytes, 
   loadRawSqliteDbBytes,
-  loadRawSqliteDbFile
+  loadRawSqliteDbFile,
+  fetchEntriesFromSqlite,
+  fetchCategoriesFromSqlite,
+  fetchBloodRecordsFromSqlite
 } from '../../utils/sqliteDb';
 import {
   testNextcloudConnection,
@@ -109,10 +108,6 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [isExportingLogbook, setIsExportingLogbook] = useState(false);
   const [isExportingBlood, setIsExportingBlood] = useState(false);
-
-  // Medications state
-  const [medicationsList, setMedicationsList] = useState<MedicationItem[]>(() => loadMedications());
-  const [isMedModalOpen, setIsMedModalOpen] = useState(false);
 
   // Restore state
   const [restoreTab, setRestoreTab] = useState<'file' | 'text'>('file');
@@ -248,6 +243,13 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
     setNcFeedback(null);
 
     try {
+      const entryCount = entries.length;
+      const catCount = categories.length;
+      const subTypeCount = subTypes.length;
+      const bloodRecordCount = bloodTestRecords?.length || 0;
+      const bloodParamCount = bloodTestParams?.length || 0;
+      const totalRecords = entryCount + catCount + subTypeCount + bloodRecordCount + bloodParamCount;
+
       // 1. Upload JSON backup
       const jsonStr = getBackupJSONString(entries, categories, subTypes, bloodTestParams, bloodTestRecords);
       const jsonRes = await uploadJsonBackupToNextcloud(ncConfig, ncPassword, jsonStr);
@@ -262,12 +264,11 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
       if (dbBytes) {
         const sqliteRes = await uploadSqliteDbToNextcloud(ncConfig, ncPassword, dbBytes);
         if (sqliteRes.success) {
-          sqliteResMsg = ` e SQLite (.sqlite - ${formatBytes(dbBytes.byteLength)})`;
+          sqliteResMsg = ' e database SQLite';
         }
       }
 
-      const countDetails = `${entries.length} misurazioni, ${bloodTestRecords?.length || 0} referti esami, ${categories.length} categorie, ${subTypes.length} sottotipi`;
-      const successMsg = `✅ Backup salvato su Nextcloud nella cartella '${ncConfig.folder || 'FireTrack'}'! (${countDetails} - JSON${sqliteResMsg})`;
+      const successMsg = `✅ Backup salvato su Nextcloud ('${ncConfig.folder || 'FireTrack'}'): ${totalRecords} record totali (${entryCount} misurazioni, ${catCount} categorie, ${subTypeCount} sottotipi, ${bloodRecordCount} esami). (JSON${sqliteResMsg})`;
       setNcFeedback({
         type: 'success',
         message: successMsg
@@ -355,53 +356,48 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
 
       if (file.name.endsWith('.sqlite') || file.name.endsWith('.db')) {
         // Restore SQLite binary
-        if (res.data && res.data.content) {
-          const restoreResult = await loadRawSqliteDbBytes(res.data.content);
+        if (res.data.isBase64 && res.data.content) {
+          const binaryString = atob(res.data.content);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          await loadRawSqliteDbBytes(bytes);
           if (onReloadAllData) {
             await onReloadAllData();
           } else {
             window.location.reload();
           }
-          const parts = [];
-          parts.push(`${restoreResult.entriesCount} misurazioni`);
-          if (restoreResult.bloodRecordsCount > 0) parts.push(`${restoreResult.bloodRecordsCount} referti esami`);
-          if (restoreResult.notesCount > 0) parts.push(`${restoreResult.notesCount} note`);
-          if (restoreResult.medsCount > 0) parts.push(`${restoreResult.medsCount} farmaci`);
-          if (restoreResult.categoriesCount > 0) parts.push(`${restoreResult.categoriesCount} categorie`);
-
-          const msg = `✅ Database SQLite (${file.name}) ripristinato con successo! (${parts.join(', ')})`;
+          const loadedEntries = await fetchEntriesFromSqlite();
+          const loadedCategories = await fetchCategoriesFromSqlite();
+          const loadedBlood = await fetchBloodRecordsFromSqlite();
+          const tot = loadedEntries.length + loadedCategories.length + loadedBlood.length;
+          const msg = `✅ Database SQLite ripristinato da Nextcloud: ${tot} record trattati (${loadedEntries.length} misurazioni, ${loadedCategories.length} categorie, ${loadedBlood.length} esami)!`;
           showToast(msg);
-          setNcFeedback({
-            type: 'success',
-            message: msg
-          });
+          setNcFeedback({ type: 'success', message: msg });
         }
       } else {
         // Restore JSON
-        if (onRestoreJsonText && res.data && res.data.content) {
-          const success = await onRestoreJsonText(res.data.content);
-          if (success) {
-            let jsonSummary = '';
-            try {
-              const p = JSON.parse(res.data.content);
-              const eCount = Array.isArray(p) ? p.length : (p.entries?.length || p.log_entries?.length || p.readings?.length || 0);
-              const bCount = p.bloodTestRecords?.length || p.blood_test_records?.length || 0;
-              const cCount = p.categories?.length || 0;
-              const nCount = p.dailyNotes?.length || 0;
-              const parts = [];
-              parts.push(`${eCount} misurazioni`);
-              if (bCount > 0) parts.push(`${bCount} referti esami`);
-              if (nCount > 0) parts.push(`${nCount} note`);
-              if (cCount > 0) parts.push(`${cCount} categorie`);
-              jsonSummary = ` (${parts.join(', ')})`;
-            } catch {}
-
-            const msg = `✅ Backup JSON (${file.name}) ripristinato con successo!${jsonSummary}`;
-            showToast(msg);
-            setNcFeedback({
-              type: 'success',
-              message: msg
-            });
+        if (onRestoreJsonText) {
+          try {
+            const parsed = JSON.parse(res.data.content);
+            const eCount = parsed.entries?.length || 0;
+            const cCount = parsed.categories?.length || 0;
+            const bCount = parsed.bloodTestRecords?.length || 0;
+            const sCount = parsed.subTypes?.length || 0;
+            const tot = eCount + cCount + bCount + sCount;
+            const success = await onRestoreJsonText(res.data.content);
+            if (success) {
+              const msg = `✅ Backup ${file.name} ripristinato da Nextcloud: ${tot} record trattati (${eCount} misurazioni, ${cCount} categorie, ${bCount} esami)!`;
+              showToast(msg);
+              setNcFeedback({ type: 'success', message: msg });
+            }
+          } catch {
+            const success = await onRestoreJsonText(res.data.content);
+            if (success) {
+              showToast(`✅ Backup ${file.name} ripristinato con successo da Nextcloud!`);
+            }
           }
         }
       }
@@ -455,7 +451,7 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
         alert('Nessuna lettura trovata per il periodo selezionato.');
         return;
       }
-      const msg = `✅ Logbook (${res.count} misurazioni) esportato con successo!`;
+      const msg = `✅ Logbook (${res.count} misurazioni) esportato con successo in CSV!`;
       setLogbookNotification(msg);
       showToast(msg);
       setTimeout(() => setLogbookNotification(null), 5000);
@@ -469,9 +465,10 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
   const handleDownloadSqlite = async () => {
     setIsExportingSqlite(true);
     try {
+      const total = entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0) + (bloodTestParams?.length || 0);
       const result = await downloadRawSqliteDbFile();
       if (result.success) {
-        const msg = `✅ ${result.message || 'File .SQLITE salvato nei Download!'}`;
+        const msg = `✅ Database SQLite salvato nei Download (${total} record totali: ${entries.length} misurazioni, ${categories.length} categorie, ${bloodTestRecords?.length || 0} esami)!`;
         setLogbookNotification(msg);
         showToast(msg);
         setTimeout(() => setLogbookNotification(null), 5000);
@@ -488,8 +485,9 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
   const handleShareSqlite = async () => {
     setIsSharingSqlite(true);
     try {
+      const total = entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0);
       const result = await shareRawSqliteDbFile();
-      showToast(result.message);
+      showToast(`📤 Database SQLite condiviso (${total} record inclusi: ${entries.length} misurazioni, ${categories.length} categorie).`);
     } catch (err: any) {
       showToast(`❌ Errore condivisione SQLite: ${err?.message || 'imprevisto'}`);
     } finally {
@@ -500,9 +498,10 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
   const handleDownloadJson = async () => {
     setIsExportingJson(true);
     try {
+      const total = entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0) + (bloodTestParams?.length || 0);
       const result = await downloadBackupJSON(entries, categories, subTypes, bloodTestParams, bloodTestRecords);
       if (result.success) {
-        const msg = `✅ ${result.message || 'Backup JSON salvato nei Download!'}`;
+        const msg = `✅ Backup JSON salvato nei Download: ${total} record trattati (${entries.length} misurazioni, ${categories.length} categorie, ${bloodTestRecords?.length || 0} esami)!`;
         setLogbookNotification(msg);
         showToast(msg);
         setTimeout(() => setLogbookNotification(null), 5000);
@@ -519,8 +518,9 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
   const handleShareJson = async () => {
     setIsSharingJson(true);
     try {
+      const total = entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0) + (bloodTestParams?.length || 0);
       const result = await shareBackupJSON(entries, categories, subTypes, bloodTestParams, bloodTestRecords);
-      showToast(result.message);
+      showToast(`📤 Backup JSON pronto per la condivisione: ${total} record trattati (${entries.length} misurazioni, ${categories.length} categorie, ${bloodTestRecords?.length || 0} esami).`);
     } catch (err: any) {
       showToast(`❌ Errore condivisione: ${err?.message || 'imprevisto'}`);
     } finally {
@@ -534,7 +534,8 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
       const res = await copyBackupJSONToClipboard(entries, categories, subTypes, bloodTestParams, bloodTestRecords);
       if (res.success) {
         setIsCopied(true);
-        showToast(`📋 Dati di backup copiati negli appunti! (${res.count} letture)`);
+        const total = entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0) + (bloodTestParams?.length || 0);
+        showToast(`📋 Dati di backup copiati negli appunti: ${total} record trattati (${entries.length} misurazioni, ${categories.length} categorie, ${bloodTestRecords?.length || 0} esami)!`);
         setTimeout(() => setIsCopied(false), 4000);
       } else {
         showToast('❌ Impossibile copiare negli appunti.');
@@ -572,7 +573,7 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
     setIsExportingBlood(true);
     try {
       await downloadBloodTestsCSV(bloodTestRecords, bloodTestParams);
-      showToast('✅ CSV Esami del Sangue esportato!');
+      showToast(`✅ CSV Esami del Sangue esportato: ${bloodTestRecords.length} referti esami (${bloodTestParams.length} parametri)!`);
     } catch (err: any) {
       showToast(`Errore CSV esami: ${err?.message || 'errore'}`);
     } finally {
@@ -620,6 +621,53 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
             <p className="text-xs text-stone-500 dark:text-stone-400">
               Sincronizza con Nextcloud, esporta il registro (CSV/Excel) o salva il database.
             </p>
+          </div>
+        </div>
+
+        {/* ================================================================= */}
+        {/* RECORD SUMMARY STATUS CARD (DATABASE ACTUALE)                     */}
+        {/* ================================================================= */}
+        <div className="bg-gradient-to-br from-white to-stone-50 dark:from-[#1a1d24] dark:to-[#15171c] rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <h3 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100">
+                Stato Database Attuale
+              </h3>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-[#13808c]/10 dark:bg-[#13808c]/25 text-[#13808c] dark:text-[#45c3d2] border border-[#13808c]/30">
+              {entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0) + (bloodTestParams?.length || 0)} Record Totali
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            {/* Misurazioni */}
+            <div className="bg-white dark:bg-stone-900/80 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">Misurazioni</span>
+              <span className="text-base font-black text-stone-900 dark:text-stone-100 mt-0.5">{entries.length}</span>
+              <span className="text-[10px] text-stone-400">voci nel registro</span>
+            </div>
+
+            {/* Categorie e Sottotipi */}
+            <div className="bg-white dark:bg-stone-900/80 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">Categorie</span>
+              <span className="text-base font-black text-stone-900 dark:text-stone-100 mt-0.5">{categories.length} <span className="text-xs font-normal text-stone-400">({subTypes.length} tipi)</span></span>
+              <span className="text-[10px] text-stone-400">configurate</span>
+            </div>
+
+            {/* Referti Esami Sangue */}
+            <div className="bg-white dark:bg-stone-900/80 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">Referti Esami</span>
+              <span className="text-base font-black text-purple-700 dark:text-purple-400 mt-0.5">{bloodTestRecords?.length || 0}</span>
+              <span className="text-[10px] text-stone-400">prelievi salvati</span>
+            </div>
+
+            {/* Parametri Clinici */}
+            <div className="bg-white dark:bg-stone-900/80 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">Parametri Esami</span>
+              <span className="text-base font-black text-stone-900 dark:text-stone-100 mt-0.5">{bloodTestParams?.length || 0}</span>
+              <span className="text-[10px] text-stone-400">voci cliniche</span>
+            </div>
           </div>
         </div>
 
@@ -791,12 +839,12 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
               {isUploadingNc ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Caricamento...</span>
+                  <span>Caricamento ({entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0)} record)...</span>
                 </>
               ) : (
                 <>
                   <CloudUpload className="w-4 h-4 text-white" />
-                  <span>Carica su Nextcloud</span>
+                  <span>Carica su Nextcloud ({entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0)} record)</span>
                 </>
               )}
             </button>
@@ -863,7 +911,7 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
                             </span>
                           </div>
                           <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
-                            {formatBytes(file.size)} • {new Date(file.lastModified).toLocaleString('it-IT')}
+                            {formatBytes(file.size)} • {new Date(file.lastModified).toLocaleString('it-IT', { hour12: false })}
                           </div>
                         </div>
 
@@ -1070,7 +1118,7 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  <span>Scarica File .SQLITE</span>
+                  <span>Scarica File .SQLITE ({entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0)} Record)</span>
                 </>
               )}
             </button>
@@ -1089,7 +1137,7 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
               ) : (
                 <>
                   <FileCode className="w-4 h-4 text-stone-600 dark:text-stone-300" />
-                  <span>Scarica Backup JSON</span>
+                  <span>Scarica Backup JSON ({entries.length + categories.length + subTypes.length + (bloodTestRecords?.length || 0)} Record)</span>
                 </>
               )}
             </button>
@@ -1157,38 +1205,6 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
               </button>
             </div>
           )}
-        </div>
-
-        {/* ================================================================= */}
-        {/* CARD: Importa / Esporta Elenco Farmaci (CSV & JSON)               */}
-        {/* ================================================================= */}
-        <div className="bg-white dark:bg-[#1a1d24] rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs p-4 sm:p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-stone-100 dark:border-stone-800 pb-3">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#3b7080] text-white flex items-center justify-center shadow-xs shrink-0">
-                <Pill className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
-                  Importazione ed Esportazione Farmaci
-                </h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  {medicationsList.length} farmaci configurati • Scarica in CSV / JSON o carica una lista
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsMedModalOpen(true)}
-              className="w-full py-3 px-4 bg-[#3b7080] hover:bg-[#2e5865] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Apri Gestione Import / Export Farmaci</span>
-            </button>
-          </div>
         </div>
 
         {/* ================================================================= */}
@@ -1299,18 +1315,6 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
             </div>
           )}
         </div>
-
-        {/* Medications Import / Export Modal */}
-        <MedicationsImportExportModal
-          isOpen={isMedModalOpen}
-          onClose={() => setIsMedModalOpen(false)}
-          medications={medicationsList}
-          onUpdateMedications={(updated) => {
-            setMedicationsList(updated);
-            showToast(`✅ Lista farmaci aggiornata (${updated.length} farmaci registrati).`);
-          }}
-          patientName={userSettings.patientName || 'Utente'}
-        />
 
       </div>
 

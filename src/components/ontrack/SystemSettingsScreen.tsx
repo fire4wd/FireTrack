@@ -55,7 +55,6 @@ import {
   MedicationItem
 } from '../../types/ontrack';
 import { TimePickerModal } from './TimePickerModal';
-import { MedicationsImportExportModal } from './MedicationsImportExportModal';
 import {
   loadEntries,
   loadMealSlots,
@@ -284,7 +283,6 @@ export const SystemSettingsScreen: React.FC<SystemSettingsScreenProps> = ({
   const [customTimeSchedule, setCustomTimeSchedule] = useState('08:00');
   const [editingMedId, setEditingMedId] = useState<string | null>(null);
   const [medFeedback, setMedFeedback] = useState<string | null>(null);
-  const [isMedImportExportOpen, setIsMedImportExportOpen] = useState(false);
 
   // Time Picker Modal State for SystemSettings
   const [timePickerModal, setTimePickerModal] = useState<{
@@ -1591,7 +1589,7 @@ export const SystemSettingsScreen: React.FC<SystemSettingsScreenProps> = ({
         {activeTab === 'medications' && (
           <div className="bg-white dark:bg-[#1a1d24] rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm p-5 sm:p-6 space-y-6">
 
-            <div className="border-b border-stone-100 dark:border-stone-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="border-b border-stone-100 dark:border-stone-800 pb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 flex items-center space-x-2">
                   <Pill className="w-5 h-5 text-[#3b7080]" />
@@ -1600,17 +1598,6 @@ export const SystemSettingsScreen: React.FC<SystemSettingsScreenProps> = ({
                 <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
                   Aggiungi, modifica o disattiva i farmaci e le posologie da utilizzare durante la registrazione nel diario.
                 </p>
-              </div>
-
-              <div className="flex items-center space-x-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsMedImportExportOpen(true)}
-                  className="px-3.5 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-[#3b7080] dark:text-[#5aa1b5] font-bold text-xs rounded-xl border border-stone-200 dark:border-stone-700 transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>Importa / Esporta</span>
-                </button>
               </div>
             </div>
 
@@ -1880,19 +1867,6 @@ export const SystemSettingsScreen: React.FC<SystemSettingsScreenProps> = ({
           onChange={(newTime) => {
             timePickerModal.onSelect(newTime);
           }}
-        />
-
-        {/* Medications Import / Export Modal */}
-        <MedicationsImportExportModal
-          isOpen={isMedImportExportOpen}
-          onClose={() => setIsMedImportExportOpen(false)}
-          medications={medicationsList}
-          onUpdateMedications={(updated) => {
-            setMedicationsList(updated);
-            setMedFeedback(`Lista farmaci aggiornata (${updated.length} farmaci registrati).`);
-            setTimeout(() => setMedFeedback(null), 4000);
-          }}
-          patientName={userSettings.patientName || 'Utente'}
         />
 
       </div>

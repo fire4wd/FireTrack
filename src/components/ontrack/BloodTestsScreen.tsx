@@ -339,67 +339,75 @@ export const BloodTestsScreen: React.FC<BloodTestsScreenProps> = ({
             className="min-w-[1040px] w-full space-y-4 bg-white dark:bg-[#1a1d24] p-5 sm:p-6 rounded-2xl border border-stone-300 dark:border-stone-800 shadow-sm print:border-none print:shadow-none print:p-0 text-stone-800 dark:text-stone-100"
           >
             {/* Top Bar (Patient & Metadata) */}
-            <div className="flex items-start justify-between border-b-2 border-stone-800 dark:border-stone-700 pb-2.5">
-              <div className="space-y-0.5">
+            <div className="flex items-start justify-between border-b-2 border-stone-800 dark:border-stone-700 pb-3">
+              <div className="space-y-1">
                 <div className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">
-                  Analisi di laboratorio
+                  Diario Personale • Analisi di Laboratorio
                 </div>
                 <h1 className="text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight">
                   {patientName}
                 </h1>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-stone-600 dark:text-stone-400 font-medium">
+                  <div>
+                    <span className="text-stone-400 dark:text-stone-500">Tipo Documento:</span>{' '}
+                    <span className="font-bold text-stone-800 dark:text-stone-200">Storico Esami del Sangue</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 dark:text-stone-500">Periodo Monitorato:</span>{' '}
+                    <span className="font-bold text-stone-800 dark:text-stone-200">
+                      {sortedRecords.length > 0
+                        ? `${sortedRecords[0].date} - ${sortedRecords[sortedRecords.length - 1].date}`
+                        : 'Nessun prelievo'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <div className="text-right text-xs text-stone-700 dark:text-stone-300 font-mono space-y-0.5">
-                <div className="font-bold text-stone-900 dark:text-stone-100 text-sm">
-                  Periodo monitorato:{' '}
-                  <span>
-                    {sortedRecords.length > 0
-                      ? `${sortedRecords[0].date} - ${sortedRecords[sortedRecords.length - 1].date}`
-                      : 'Nessun prelievo'}
-                  </span>
-                </div>
+              <div className="text-right text-xs text-stone-500 dark:text-stone-400 font-mono space-y-0.5">
+                <div className="font-bold text-stone-800 dark:text-stone-200 text-sm">ANALISI DI LABORATORIO</div>
                 <div>Generato: {new Date().toLocaleDateString('it-IT')}</div>
+                <div className="text-[10px] text-stone-400 font-sans">OnTrack</div>
               </div>
             </div>
 
             {/* Summary Metric Chips inside printable area - 4 Columns Across Full Landscape Width */}
             <div className="grid grid-cols-4 gap-3 w-full">
-              <div className="bg-white dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex items-center justify-between blood-metric-card">
+              <div className="bg-stone-50 dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex items-center justify-between">
                 <div>
-                  <div className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase blood-card-label">Prelievi Storici</div>
-                  <div className="text-lg font-bold text-stone-900 dark:text-stone-100 font-mono blood-card-value">{records.length}</div>
+                  <div className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase">Prelievi Storici</div>
+                  <div className="text-lg font-bold text-stone-900 dark:text-stone-100 font-mono">{records.length}</div>
                 </div>
-                <div className="p-1.5 bg-purple-50 dark:bg-purple-950/60 rounded-lg text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/80 blood-icon-purple">
+                <div className="p-1.5 bg-purple-100 dark:bg-purple-950/60 rounded-lg text-purple-700 dark:text-purple-300">
                   <Calendar className="w-4 h-4" />
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex items-center justify-between blood-metric-card">
+              <div className="bg-stone-50 dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex items-center justify-between">
                 <div>
-                  <div className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase blood-card-label">Parametri Monitorati</div>
-                  <div className="text-lg font-bold text-stone-900 dark:text-stone-100 font-mono blood-card-value">{parameters.length}</div>
+                  <div className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase">Parametri Monitorati</div>
+                  <div className="text-lg font-bold text-stone-900 dark:text-stone-100 font-mono">{parameters.length}</div>
                 </div>
-                <div className="p-1.5 bg-blue-50 dark:bg-blue-950/60 rounded-lg text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 blood-icon-blue">
+                <div className="p-1.5 bg-blue-100 dark:bg-blue-950/60 rounded-lg text-blue-700 dark:text-blue-300">
                   <Sliders className="w-4 h-4" />
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex items-center justify-between blood-metric-card">
+              <div className="bg-stone-50 dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex items-center justify-between">
                 <div>
-                  <div className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase blood-card-label">Nel Range Normale</div>
-                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 font-mono blood-card-value">{inRangePercent}%</div>
+                  <div className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase">Nel Range Normale</div>
+                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 font-mono">{inRangePercent}%</div>
                 </div>
-                <div className="p-1.5 bg-emerald-50 dark:bg-emerald-950/60 rounded-lg text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 blood-icon-green">
+                <div className="p-1.5 bg-emerald-100 dark:bg-emerald-950/60 rounded-lg text-emerald-700 dark:text-emerald-300">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex items-center justify-between blood-metric-card">
+              <div className="bg-stone-50 dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs flex items-center justify-between">
                 <div>
-                  <div className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase blood-card-label">Fuori Soglia</div>
-                  <div className="text-lg font-bold text-rose-600 dark:text-rose-400 font-mono blood-card-value">{outOfRangeValues}</div>
+                  <div className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase">Fuori Soglia</div>
+                  <div className="text-lg font-bold text-rose-700 dark:text-rose-400 font-mono">{outOfRangeValues}</div>
                 </div>
-                <div className="p-1.5 bg-rose-50 dark:bg-rose-950/60 rounded-lg text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 blood-icon-red">
+                <div className="p-1.5 bg-rose-100 dark:bg-rose-950/60 rounded-lg text-rose-700 dark:text-rose-300">
                   <AlertTriangle className="w-4 h-4" />
                 </div>
               </div>
@@ -533,26 +541,17 @@ export const BloodTestsScreen: React.FC<BloodTestsScreenProps> = ({
                               <td
                                 key={param.id}
                                 style={{ width: `${paramWidthPercent}%` }}
-                                className="p-1.5 text-center font-bold border-r border-stone-200 dark:border-stone-700 last:border-r-0 bg-white dark:bg-[#1a1d24]"
+                                className={`p-2 text-center font-bold border-r border-stone-200 dark:border-stone-700 last:border-r-0 transition-colors ${
+                                  evalRes.isGreen
+                                    ? 'bg-[#dcfce7] dark:bg-emerald-950/60 text-[#15803d] dark:text-emerald-300'
+                                    : 'bg-[#fee2e2] dark:bg-rose-950/60 text-[#b91c1c] dark:text-rose-300'
+                                }`}
                               >
-                                <div
-                                  data-blood-status={evalRes.isGreen ? 'normal' : 'out'}
-                                  className={`blood-badge inline-flex items-center justify-center min-w-[3.4rem] px-2 py-0.5 rounded-md text-[12px] font-bold border transition-colors shadow-2xs ${
-                                    evalRes.isGreen
-                                      ? 'bg-emerald-50/80 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/50 blood-badge-normal'
-                                      : 'bg-rose-50/80 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-500/50 blood-badge-out'
-                                  }`}
-                                >
-                                  <span className={`blood-val-num font-mono font-bold ${evalRes.isGreen ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
-                                    {valDisplay}
-                                  </span>
-                                  {evalRes.status === 'high' && (
-                                    <span className="blood-arrow text-[11px] ml-0.5 font-black text-rose-700 dark:text-rose-400">↑</span>
-                                  )}
-                                  {evalRes.status === 'low' && (
-                                    <span className="blood-arrow text-[11px] ml-0.5 font-black text-rose-700 dark:text-rose-400">↓</span>
-                                  )}
-                                </div>
+                                <span className="inline-flex items-center justify-center space-x-0.5">
+                                  <span>{valDisplay}</span>
+                                  {evalRes.status === 'high' && <span className="text-[10px] ml-0.5 font-black">↑</span>}
+                                  {evalRes.status === 'low' && <span className="text-[10px] ml-0.5 font-black">↓</span>}
+                                </span>
                               </td>
                             );
                           })}
@@ -589,16 +588,16 @@ export const BloodTestsScreen: React.FC<BloodTestsScreenProps> = ({
               </div>
 
               {/* Table Footer with Legend */}
-              <div className="bg-stone-50 dark:bg-stone-900/80 px-4 py-2.5 border-t border-stone-200 dark:border-stone-700 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-stone-600 dark:text-stone-400 gap-2 blood-legend-container">
+              <div className="bg-stone-50 dark:bg-stone-900/80 px-4 py-2.5 border-t border-stone-200 dark:border-stone-700 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-stone-600 dark:text-stone-400 gap-2">
                 <div className="flex flex-wrap items-center gap-4">
-                  <span className="font-bold text-stone-800 dark:text-stone-200 blood-legend-title">Legenda:</span>
+                  <span className="font-bold text-stone-800 dark:text-stone-200">Legenda:</span>
                   <div className="flex items-center space-x-1.5">
-                    <span className="w-3.5 h-3.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-400 dark:border-emerald-500 inline-block blood-legend-green-box"></span>
-                    <span className="font-bold text-emerald-700 dark:text-emerald-400 blood-legend-green-text">Nel Range di Riferimento (Verde)</span>
+                    <span className="w-3.5 h-3.5 rounded bg-[#dcfce7] dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 inline-block"></span>
+                    <span className="font-semibold text-emerald-800 dark:text-emerald-300">Nel Range di Riferimento</span>
                   </div>
                   <div className="flex items-center space-x-1.5">
-                    <span className="w-3.5 h-3.5 rounded-md bg-rose-50 dark:bg-rose-950/60 border border-rose-400 dark:border-rose-500 inline-block blood-legend-red-box"></span>
-                    <span className="font-bold text-rose-700 dark:text-rose-400 blood-legend-red-text">Fuori Range (Rosso: ↑ Elevato / ↓ Basso)</span>
+                    <span className="w-3.5 h-3.5 rounded bg-[#fee2e2] dark:bg-rose-950 border border-rose-300 dark:border-rose-700 inline-block"></span>
+                    <span className="font-semibold text-rose-800 dark:text-rose-300">Fuori Range (↑ Elevato / ↓ Basso)</span>
                   </div>
                 </div>
 

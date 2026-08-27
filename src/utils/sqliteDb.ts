@@ -208,6 +208,13 @@ export function syncSqliteToLocalCaches(db: Database) {
             eventNoteIcon: obj.event_note_icon || undefined,
             reminder: Boolean(obj.reminder),
             note: obj.note || '',
+            calories: obj.calories || undefined,
+            gda: obj.gda || undefined,
+            fat: obj.fat || undefined,
+            protein: obj.protein || undefined,
+            carbs: obj.carbs || undefined,
+            exerciseCal: obj.exercise_cal || undefined,
+            netCal: obj.net_cal || undefined,
             timestamp: Number(obj.timestamp)
           };
         });
@@ -402,8 +409,8 @@ export function syncAllDataToSqlite(db: Database) {
     if (currentEntries && currentEntries.length > 0) {
       db.run('DELETE FROM log_entries');
       const stmt = db.prepare(`
-        INSERT INTO log_entries (id, subtype_id, subtype_name, value, systolic, diastolic, pulse, distance, duration, speed, unit, entry_date, entry_time, category_id, category_name, meal_timing, event_note_icon, reminder, note, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO log_entries (id, subtype_id, subtype_name, value, systolic, diastolic, pulse, distance, duration, speed, unit, entry_date, entry_time, category_id, category_name, meal_timing, event_note_icon, reminder, note, calories, gda, fat, protein, carbs, exercise_cal, net_cal, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       currentEntries.forEach(e => {
         stmt.run([
@@ -426,6 +433,13 @@ export function syncAllDataToSqlite(db: Database) {
           e.eventNoteIcon || null,
           e.reminder ? 1 : 0,
           e.note || '',
+          e.calories || null,
+          e.gda || null,
+          e.fat || null,
+          e.protein || null,
+          e.carbs || null,
+          e.exerciseCal || null,
+          e.netCal || null,
           e.timestamp
         ]);
       });
@@ -634,6 +648,13 @@ function initTablesAndSeed(db: Database, isNewDb = false) {
         event_note_icon TEXT,
         reminder INTEGER DEFAULT 0,
         note TEXT,
+        calories TEXT,
+        gda TEXT,
+        fat TEXT,
+        protein TEXT,
+        carbs TEXT,
+        exercise_cal TEXT,
+        net_cal TEXT,
         timestamp INTEGER NOT NULL
       );
 
@@ -695,6 +716,13 @@ function initTablesAndSeed(db: Database, isNewDb = false) {
     try { db.run('ALTER TABLE log_entries ADD COLUMN meal_timing TEXT;'); } catch (_) {}
     try { db.run('ALTER TABLE log_entries ADD COLUMN event_note_icon TEXT;'); } catch (_) {}
     try { db.run('ALTER TABLE log_entries ADD COLUMN pulse TEXT;'); } catch (_) {}
+    try { db.run('ALTER TABLE log_entries ADD COLUMN calories TEXT;'); } catch (_) {}
+    try { db.run('ALTER TABLE log_entries ADD COLUMN gda TEXT;'); } catch (_) {}
+    try { db.run('ALTER TABLE log_entries ADD COLUMN fat TEXT;'); } catch (_) {}
+    try { db.run('ALTER TABLE log_entries ADD COLUMN protein TEXT;'); } catch (_) {}
+    try { db.run('ALTER TABLE log_entries ADD COLUMN carbs TEXT;'); } catch (_) {}
+    try { db.run('ALTER TABLE log_entries ADD COLUMN exercise_cal TEXT;'); } catch (_) {}
+    try { db.run('ALTER TABLE log_entries ADD COLUMN net_cal TEXT;'); } catch (_) {}
 
     // Only seed initial default data if this is a newly created database
     if (isNewDb) {
@@ -975,8 +1003,8 @@ export async function saveEntriesToSqlite(entries: LogEntryItem[]): Promise<void
     db.run('DELETE FROM log_entries');
 
     const stmt = db.prepare(`
-      INSERT INTO log_entries (id, subtype_id, subtype_name, value, systolic, diastolic, pulse, distance, duration, speed, unit, entry_date, entry_time, category_id, category_name, meal_timing, event_note_icon, reminder, note, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO log_entries (id, subtype_id, subtype_name, value, systolic, diastolic, pulse, distance, duration, speed, unit, entry_date, entry_time, category_id, category_name, meal_timing, event_note_icon, reminder, note, calories, gda, fat, protein, carbs, exercise_cal, net_cal, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     entries.forEach(e => {
@@ -1000,6 +1028,13 @@ export async function saveEntriesToSqlite(entries: LogEntryItem[]): Promise<void
         e.eventNoteIcon || null,
         e.reminder ? 1 : 0,
         e.note || '',
+        e.calories || null,
+        e.gda || null,
+        e.fat || null,
+        e.protein || null,
+        e.carbs || null,
+        e.exerciseCal || null,
+        e.netCal || null,
         e.timestamp
       ]);
     });
@@ -1567,15 +1602,40 @@ export async function shareRawSqliteDbFile(filename = 'firetrack_database.sqlite
 /**
  * Import actual .sqlite binary database file
  */
-export async function loadRawSqliteDbFile(file: File): Promise<RestoreSqliteResult> {
+export async function loadRawSqliteDbFile(file: File): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const arrayBuffer = e.target?.result as ArrayBuffer;
         const uInt8Array = new Uint8Array(arrayBuffer);
-        const res = await loadRawSqliteDbBytes(uInt8Array);
-        resolve(res);
+
+        const initFn = typeof initSqlJs === 'function' 
+          ? initSqlJs 
+          : (initSqlJs as any)?.default || (window as any)?.initSqlJs;
+
+        let SQL: any = null;
+        try {
+          SQL = await initFn({
+            locateFile: (f: string) => f.endsWith('.wasm') ? (sqlWasmUrl || '/sql-wasm.wasm') : `/${f}`
+          });
+        } catch (_) {
+          try {
+            SQL = await initFn({
+              locateFile: (f: string) => f.endsWith('.wasm') ? '/sql-wasm.wasm' : `/${f}`
+            });
+          } catch (__) {
+            SQL = await initFn({
+              locateFile: (f: string) => f.endsWith('.wasm') ? 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.1/sql-wasm.wasm' : `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.1/${f}`
+            });
+          }
+        }
+
+        dbInstance = new SQL.Database(uInt8Array);
+        initTablesAndSeed(dbInstance, false);
+        syncSqliteToLocalCaches(dbInstance);
+        persistDbToStorage(dbInstance);
+        resolve(true);
       } catch (err) {
         console.error('Failed to parse loaded .sqlite file', err);
         reject(err);
@@ -1603,79 +1663,10 @@ export async function getRawSqliteDbBytes(): Promise<Uint8Array | null> {
 }
 
 /**
- * Unpacks and sanitizes SQLite bytes from raw Uint8Array, ArrayBuffer, base64 or ASCII binary
+ * Loads SQLite database directly from Uint8Array bytes
  */
-export function extractSqliteBytes(raw: any): Uint8Array {
-  if (!raw) throw new Error('Dati database vuoti');
-  if (raw instanceof Uint8Array) return raw;
-  if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
-
-  if (typeof raw === 'string') {
-    let str = raw.trim();
-
-    // Check if it's base64 encoded (possibly nested)
-    let attempts = 0;
-    while (attempts < 5) {
-      if (str.startsWith('SQLite format 3')) {
-        const len = str.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = str.charCodeAt(i);
-        }
-        return bytes;
-      }
-      
-      try {
-        const decoded = atob(str);
-        if (decoded.startsWith('SQLite format 3')) {
-          const len = decoded.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = decoded.charCodeAt(i);
-          }
-          return bytes;
-        }
-        str = decoded;
-        attempts++;
-      } catch {
-        const len = str.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = str.charCodeAt(i);
-        }
-        return bytes;
-      }
-    }
-
-    const len = str.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = str.charCodeAt(i);
-    }
-    return bytes;
-  }
-
-  throw new Error('Formato database non riconosciuto');
-}
-
-export interface RestoreSqliteResult {
-  success: boolean;
-  entriesCount: number;
-  bloodRecordsCount: number;
-  bloodParamsCount: number;
-  categoriesCount: number;
-  subTypesCount: number;
-  notesCount: number;
-  medsCount: number;
-}
-
-/**
- * Loads SQLite database directly from Uint8Array bytes, ArrayBuffer or Base64 string,
- * returning the precise counts of restored records.
- */
-export async function loadRawSqliteDbBytes(uInt8Array: Uint8Array | ArrayBuffer | string): Promise<RestoreSqliteResult> {
+export async function loadRawSqliteDbBytes(uInt8Array: Uint8Array): Promise<boolean> {
   try {
-    const bytes = extractSqliteBytes(uInt8Array);
     const initFn = typeof initSqlJs === 'function' 
       ? initSqlJs 
       : (initSqlJs as any)?.default || (window as any)?.initSqlJs;
@@ -1697,78 +1688,11 @@ export async function loadRawSqliteDbBytes(uInt8Array: Uint8Array | ArrayBuffer 
       }
     }
 
-    dbInstance = new SQL.Database(bytes);
+    dbInstance = new SQL.Database(uInt8Array);
     initTablesAndSeed(dbInstance, false);
     syncSqliteToLocalCaches(dbInstance);
     persistDbToStorage(dbInstance);
-
-    let entriesCount = 0;
-    let bloodRecordsCount = 0;
-    let bloodParamsCount = 0;
-    let categoriesCount = 0;
-    let subTypesCount = 0;
-    let notesCount = 0;
-    let medsCount = 0;
-
-    try {
-      const res = dbInstance.exec('SELECT count(*) FROM log_entries');
-      if (res && res[0] && res[0].values && res[0].values[0]) {
-        entriesCount = Number(res[0].values[0][0]) || 0;
-      }
-    } catch {}
-
-    try {
-      const res = dbInstance.exec('SELECT count(*) FROM blood_test_records');
-      if (res && res[0] && res[0].values && res[0].values[0]) {
-        bloodRecordsCount = Number(res[0].values[0][0]) || 0;
-      }
-    } catch {}
-
-    try {
-      const res = dbInstance.exec('SELECT count(*) FROM blood_test_parameters');
-      if (res && res[0] && res[0].values && res[0].values[0]) {
-        bloodParamsCount = Number(res[0].values[0][0]) || 0;
-      }
-    } catch {}
-
-    try {
-      const res = dbInstance.exec('SELECT count(*) FROM health_categories');
-      if (res && res[0] && res[0].values && res[0].values[0]) {
-        categoriesCount = Number(res[0].values[0][0]) || 0;
-      }
-    } catch {}
-
-    try {
-      const res = dbInstance.exec('SELECT count(*) FROM health_subtypes');
-      if (res && res[0] && res[0].values && res[0].values[0]) {
-        subTypesCount = Number(res[0].values[0][0]) || 0;
-      }
-    } catch {}
-
-    try {
-      const res = dbInstance.exec('SELECT count(*) FROM daily_notes');
-      if (res && res[0] && res[0].values && res[0].values[0]) {
-        notesCount = Number(res[0].values[0][0]) || 0;
-      }
-    } catch {}
-
-    try {
-      const res = dbInstance.exec('SELECT count(*) FROM medications');
-      if (res && res[0] && res[0].values && res[0].values[0]) {
-        medsCount = Number(res[0].values[0][0]) || 0;
-      }
-    } catch {}
-
-    return {
-      success: true,
-      entriesCount,
-      bloodRecordsCount,
-      bloodParamsCount,
-      categoriesCount,
-      subTypesCount,
-      notesCount,
-      medsCount
-    };
+    return true;
   } catch (err) {
     console.error('Error loading SQLite from bytes:', err);
     throw err;

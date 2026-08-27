@@ -19,17 +19,8 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClose();
-      }}
-    >
-      <div 
-        className="bg-white dark:bg-[#1a1d24] rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border border-stone-400 dark:border-stone-700"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white dark:bg-[#1a1d24] rounded-none shadow-2xl w-full max-w-xs overflow-hidden border border-stone-400 dark:border-stone-700">
         
         {/* Dark Header */}
         <div className="bg-[#111111] text-white px-4 py-3 border-b border-stone-800">

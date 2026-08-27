@@ -423,7 +423,9 @@ async function updateRemoteManifest(
         method: 'PUT',
         headers: {
           Authorization: authHeader,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json; charset=utf-8',
+          'OCS-APIRequest': 'true',
+          'User-Agent': 'FireTrack/1.0 (Health Tracking App)'
         },
         data: manifestContent
       });
@@ -432,7 +434,8 @@ async function updateRemoteManifest(
         method: 'PUT',
         headers: {
           Authorization: authHeader,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json; charset=utf-8',
+          'OCS-APIRequest': 'true'
         },
         body: manifestContent
       });
@@ -620,34 +623,6 @@ export async function testNextcloudConnection(
 }
 
 /**
- * Helper to fetch exact Content-Length for a remote file via HEAD request
- */
-async function getRemoteFileSize(fileUrl: string, authHeader: string): Promise<number> {
-  try {
-    if (isNativeApp()) {
-      const res = await CapacitorHttp.request({
-        url: fileUrl,
-        method: 'HEAD',
-        headers: { Authorization: authHeader },
-        connectTimeout: 5000,
-        readTimeout: 5000
-      });
-      const headers = res.headers || {};
-      const cl = headers['Content-Length'] || headers['content-length'] || headers['Content-length'];
-      if (cl) return parseInt(cl, 10);
-    } else {
-      const res = await fetch(fileUrl, {
-        method: 'HEAD',
-        headers: { Authorization: authHeader }
-      });
-      const cl = res.headers.get('content-length');
-      if (cl) return parseInt(cl, 10);
-    }
-  } catch {}
-  return 0;
-}
-
-/**
  * 2. List remote backup files in Nextcloud folder
  */
 export async function listNextcloudBackups(
@@ -665,53 +640,30 @@ export async function listNextcloudBackups(
   const { folderUrl, legacyFolderUrl, cleanUser, cleanFolder, cleanBase } = getNextcloudUrls(norm.serverUrl, norm.username, norm.folder);
   const authHeader = getBasicAuthHeader(cleanUser, password);
 
-  // Strategy A: Native App (Prioritizing WebDAV PROPFIND with accurate size retrieval & fallbacks)
+  // Strategy A: Native App (Multi-strategy using standard GET methods to prevent OkHttp exceptions)
   if (isNativeApp()) {
     try {
       const fileMap = new Map<string, RemoteNextcloudFile>();
 
-      // 1. Primary Strategy: WebDAV PROPFIND (Gives exact <d:getcontentlength> and timestamps)
-      const propfindUrls = [folderUrl, legacyFolderUrl];
-      for (const pUrl of propfindUrls) {
-        if (fileMap.size > 0) break;
-        const propfindResult = await executePropfind(pUrl, authHeader, '1');
+      // 1. Fetch from Nextcloud OCS Search API (100% GET - supported on all Android versions)
+      const ocsFiles = await listViaOcsSearch(cleanBase, cleanFolder, authHeader);
+      for (const f of ocsFiles) {
+        if (!fileMap.has(f.name)) fileMap.set(f.name, f);
+      }
+
+      // 2. Fetch from remote manifest index (100% GET)
+      const manifestFiles = await fetchRemoteManifest(folderUrl, authHeader);
+      for (const f of manifestFiles) {
+        if (!fileMap.has(f.name)) fileMap.set(f.name, f);
+      }
+
+      // 3. Fallback: try WebDAV PROPFIND with full exception shielding
+      if (fileMap.size === 0) {
+        const propfindResult = await executePropfind(folderUrl, authHeader, '1');
         if (propfindResult.ok && propfindResult.data) {
           const parsed = parsePropfindXml(propfindResult.data, cleanFolder);
           for (const f of parsed) {
             if (!fileMap.has(f.name)) fileMap.set(f.name, f);
-          }
-        }
-      }
-
-      // 2. Fallback: Remote Manifest Index
-      if (fileMap.size === 0) {
-        const manifestFiles = await fetchRemoteManifest(folderUrl, authHeader);
-        for (const f of manifestFiles) {
-          if (!fileMap.has(f.name)) fileMap.set(f.name, f);
-        }
-      }
-
-      // 3. Fallback: Nextcloud OCS Search API (100% GET)
-      if (fileMap.size === 0) {
-        const ocsFiles = await listViaOcsSearch(cleanBase, cleanFolder, authHeader);
-        for (const f of ocsFiles) {
-          if (!fileMap.has(f.name)) fileMap.set(f.name, f);
-        }
-      }
-
-      // 4. Ensure NO file has size 0: fetch exact Content-Length via HEAD if size is 0
-      for (const f of fileMap.values()) {
-        if (f.size <= 0) {
-          const directFileUrl = `${folderUrl.replace(/\/+$/, '')}/${encodeURIComponent(f.name)}`;
-          const realSize = await getRemoteFileSize(directFileUrl, authHeader);
-          if (realSize > 0) {
-            f.size = realSize;
-          } else {
-            const legacyFileUrl = `${legacyFolderUrl.replace(/\/+$/, '')}/${encodeURIComponent(f.name)}`;
-            const legacySize = await getRemoteFileSize(legacyFileUrl, authHeader);
-            if (legacySize > 0) {
-              f.size = legacySize;
-            }
           }
         }
       }
@@ -791,7 +743,9 @@ export async function uploadJsonBackupToNextcloud(
   await ensureRemoteFolder(folderUrl, authHeader);
 
   const targetFileUrl = `${folderUrl.replace(/\/+$/, '')}/${encodeURIComponent(filename)}`;
-  const byteSize = new Blob([jsonString]).size;
+  const encoder = new TextEncoder();
+  const utf8Bytes = encoder.encode(jsonString);
+  const byteSize = utf8Bytes.length;
 
   // Strategy A: Native App (Direct PUT via CapacitorHttp)
   if (isNativeApp()) {
@@ -801,7 +755,9 @@ export async function uploadJsonBackupToNextcloud(
         method: 'PUT',
         headers: {
           Authorization: authHeader,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json; charset=utf-8',
+          'OCS-APIRequest': 'true',
+          'User-Agent': 'FireTrack/1.0 (Health Tracking App)'
         },
         data: jsonString
       });
@@ -823,7 +779,7 @@ export async function uploadJsonBackupToNextcloud(
 
         return {
           success: true,
-          message: `File '${filename}' caricato con successo in Nextcloud/${cleanFolder}!`,
+          message: `File '${filename}' (${byteSize} bytes) caricato con successo in Nextcloud/${cleanFolder}!`,
           filename,
           bytes: byteSize
         };
@@ -853,7 +809,7 @@ export async function uploadJsonBackupToNextcloud(
         folder: norm.folder,
         filename,
         content: jsonString,
-        contentType: 'application/json',
+        contentType: 'application/json; charset=utf-8',
         isBase64: false
       })
     });
@@ -926,9 +882,12 @@ export async function uploadSqliteDbToNextcloud(
         method: 'PUT',
         headers: {
           Authorization: authHeader,
-          'Content-Type': 'application/x-sqlite3'
+          'Content-Type': 'application/octet-stream',
+          'OCS-APIRequest': 'true',
+          'User-Agent': 'FireTrack/1.0 (Health Tracking App)'
         },
-        data: base64Content
+        data: base64Content,
+        dataType: 'file'
       });
 
       if (putRes.status === 200 || putRes.status === 201 || putRes.status === 204) {
@@ -944,7 +903,7 @@ export async function uploadSqliteDbToNextcloud(
 
         return {
           success: true,
-          message: `Database SQLite (${filename}) caricato su Nextcloud/${cleanFolder}!`,
+          message: `Database SQLite (${filename}, ${sqliteBytes.byteLength} bytes) caricato su Nextcloud/${cleanFolder}!`,
           filename,
           bytes: sqliteBytes.byteLength
         };

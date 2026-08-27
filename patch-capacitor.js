@@ -144,47 +144,137 @@ if (fs.existsSync(httpConnPath)) {
     console.log(' [PATCH] CapacitorHttpUrlConnection patched for SSL!');
   }
 
-  // 2b. Patch setRequestMethod to support WebDAV methods (PROPFIND, MKCOL, etc.) via Java reflection
-  const targetSetRequestMethod = `    public void setRequestMethod(String method) throws ProtocolException {
-        connection.setRequestMethod(method);
-    }`;
-
-  const replacementSetRequestMethod = `    public void setRequestMethod(String method) throws ProtocolException {
-        try {
-            connection.setRequestMethod(method);
-        } catch (final Exception pe) {
-            try {
-                Class<?> c = connection.getClass();
-                java.lang.reflect.Field methodField = null;
-                while (c != null) {
-                    try {
-                        methodField = c.getDeclaredField("method");
-                        break;
-                    } catch (NoSuchFieldException e) {
-                        c = c.getSuperclass();
-                    }
-                }
-                if (methodField != null) {
-                    methodField.setAccessible(true);
-                    methodField.set(connection, method);
-                } else {
-                    try {
-                        java.lang.reflect.Field delegateField = connection.getClass().getDeclaredField("delegate");
-                        delegateField.setAccessible(true);
-                        Object delegate = delegateField.get(connection);
-                        if (delegate instanceof HttpURLConnection) {
-                            ((HttpURLConnection) delegate).setRequestMethod(method);
-                        }
-                    } catch (Exception ignored) {}
-                }
-            } catch (Exception ignored) {}
+  // Patch setRequestBody to support binary and avoid zero-byte uploads on WebDAV/Nextcloud
+  const targetSetRequestBody = `    public void setRequestBody(PluginCall call, JSValue body, String bodyType) throws JSONException, IOException {`;
+  const replacementSetRequestBody = `    public void setRequestBody(PluginCall call, JSValue body, String bodyType) throws JSONException, IOException {
+        String contentType = connection.getRequestProperty("Content-Type");
+        if (contentType == null || contentType.isEmpty()) {
+            contentType = "application/octet-stream";
+            connection.setRequestProperty("Content-Type", contentType);
         }
-    }`;
 
-  if (code.includes(targetSetRequestMethod)) {
-    code = code.replace(targetSetRequestMethod, replacementSetRequestMethod);
+        if (bodyType != null && (bodyType.equals("file") || bodyType.equals("binary") || bodyType.equals("base64"))) {
+            byte[] bytes;
+            String raw = body != null ? body.toString() : call.getString("data", "");
+            if (raw == null) raw = "";
+            try {
+                int commaIdx = raw.indexOf(",");
+                if (commaIdx != -1 && raw.startsWith("data:")) {
+                    raw = raw.substring(commaIdx + 1);
+                }
+                bytes = android.util.Base64.decode(raw.trim(), android.util.Base64.DEFAULT);
+            } catch (Exception e) {
+                bytes = raw.getBytes(StandardCharsets.UTF_8);
+            }
+            connection.setFixedLengthStreamingMode(bytes.length);
+            try (DataOutputStream os = new DataOutputStream(connection.getOutputStream())) {
+                os.write(bytes, 0, bytes.length);
+                os.flush();
+            }
+            return;
+        }
+
+        if (contentType.contains("application/json") || bodyType == null) {
+            if (!contentType.contains("application/x-www-form-urlencoded") && !contentType.contains("multipart/form-data")) {
+                JSArray jsArray = null;
+                String dataString = "";
+                if (body != null) {
+                    dataString = body.toString();
+                } else {
+                    jsArray = call.getArray("data", null);
+                }
+                if (jsArray != null) {
+                    dataString = jsArray.toString();
+                } else if (body == null) {
+                    dataString = call.getString("data");
+                }
+                byte[] bytes = (dataString != null ? dataString : "").getBytes(StandardCharsets.UTF_8);
+                connection.setFixedLengthStreamingMode(bytes.length);
+                try (DataOutputStream os = new DataOutputStream(connection.getOutputStream())) {
+                    os.write(bytes, 0, bytes.length);
+                    os.flush();
+                }
+                return;
+            }
+        }
+
+        if (contentType.contains("application/x-www-form-urlencoded")) {
+            try {
+                JSObject obj = body.toJSObject();
+                this.writeObjectRequestBody(obj);
+                return;
+            } catch (Exception e) {
+                this.writeRequestBody(body.toString());
+                return;
+            }
+        } else if (bodyType != null && bodyType.equals("formData")) {
+            String boundary = extractBoundaryFromContentType(contentType);
+            if (boundary == null) {
+                boundary = UUID.randomUUID().toString();
+                connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            }
+            this.writeFormDataRequestBody(boundary, body.toJSArray());
+            return;
+        } else {
+            byte[] bytes = (body != null ? body.toString() : "").getBytes(StandardCharsets.UTF_8);
+            connection.setFixedLengthStreamingMode(bytes.length);
+            try (DataOutputStream os = new DataOutputStream(connection.getOutputStream())) {
+                os.write(bytes, 0, bytes.length);
+                os.flush();
+            }
+            return;
+        }
+    }
+
+    private void dummy_old_setRequestBody(PluginCall call, JSValue body, String bodyType) throws JSONException, IOException {`;
+
+  if (code.includes(targetSetRequestBody) && !code.includes('dummy_old_setRequestBody')) {
+    code = code.replace(targetSetRequestBody, replacementSetRequestBody);
     fs.writeFileSync(httpConnPath, code, 'utf-8');
-    console.log(' [PATCH] CapacitorHttpUrlConnection patched for WebDAV methods (PROPFIND/MKCOL)!');
+    console.log(' [PATCH] CapacitorHttpUrlConnection setRequestBody patched for exact streaming length!');
+  } else if (code.includes('public void setRequestBody(PluginCall call, JSValue body, String bodyType) throws JSONException, IOException {') && code.includes('dummy_old_setRequestBody')) {
+    // Replace the already patched setRequestBody
+    const startIdx = code.indexOf('public void setRequestBody(PluginCall call, JSValue body, String bodyType)');
+    const endIdx = code.indexOf('private void dummy_old_setRequestBody');
+    if (startIdx !== -1 && endIdx !== -1) {
+      code = code.substring(0, startIdx) + replacementSetRequestBody.trim() + '\n\n    ' + code.substring(endIdx);
+      fs.writeFileSync(httpConnPath, code, 'utf-8');
+      console.log(' [PATCH] CapacitorHttpUrlConnection setRequestBody updated with newest streaming fix!');
+    }
+  }
+}
+
+// 2b. Patch HttpRequestHandler to remove conflicting Content-Length headers
+const httpHandlerPath = path.join(
+  process.cwd(),
+  'node_modules',
+  '@capacitor',
+  'android',
+  'capacitor',
+  'src',
+  'main',
+  'java',
+  'com',
+  'getcapacitor',
+  'plugin',
+  'util',
+  'HttpRequestHandler.java'
+);
+
+if (fs.existsSync(httpHandlerPath)) {
+  let code = fs.readFileSync(httpHandlerPath, 'utf-8');
+  if (!code.includes('headers.remove("Content-Length");')) {
+    const targetHeaders = `JSObject headers = call.getObject("headers", new JSObject());`;
+    const replacementHeaders = `JSObject headers = call.getObject("headers", new JSObject());
+        if (headers != null) {
+            headers.remove("Content-Length");
+            headers.remove("content-length");
+        }`;
+    if (code.includes(targetHeaders)) {
+      code = code.replace(targetHeaders, replacementHeaders);
+      fs.writeFileSync(httpHandlerPath, code, 'utf-8');
+      console.log(' [PATCH] HttpRequestHandler patched to remove duplicate Content-Length headers!');
+    }
   }
 }
 

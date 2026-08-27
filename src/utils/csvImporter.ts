@@ -1,5 +1,6 @@
 import { LogEntryItem, HealthCategory, HealthSubType } from '../types/ontrack';
 import { findCategoryForTime } from './timeCategoryMatcher';
+import { formatTime24h } from './fastingHelpers';
 
 const ITALIAN_MONTHS: Record<string, string> = {
   gen: '01', gennaio: '01',
@@ -47,22 +48,6 @@ export interface ParsedCsvRow {
   categoryId: string;
   categoryName: string;
   timestamp: number;
-  // Fasting fields
-  fastingStartDate?: string;
-  fastingStartTime?: string;
-  fastingEndDate?: string;
-  fastingEndTime?: string;
-  fastingProtocol?: string;
-  fastingTargetHours?: number;
-  fastingStartGlucose?: string | number;
-  fastingEndGlucose?: string | number;
-  fastingIsInProgress?: boolean;
-  // Medication fields
-  medicationName?: string;
-  medicationDosage?: string;
-  medicationSchedule?: string;
-  medicationInstructions?: string;
-  medicationActive?: boolean;
   isValid: boolean;
   error?: string;
 }
@@ -72,7 +57,7 @@ export interface CsvParseResult {
   validRows: ParsedCsvRow[];
   invalidRows: { rowNumber: number; raw: string; error: string }[];
   dateRange: { start: string; end: string } | null;
-  detectedFormat?: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'fasting' | 'medication' | 'generic';
+  detectedFormat?: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'generic';
   targetSubTypes: string[];
   categoryLabel: string;
 }
@@ -126,81 +111,132 @@ function parseCsvLines(text: string): string[][] {
 
 /**
  * Parse an Italian, ISO, or relative date-time string
- * Examples:
- * - "14 Ago 2026, 00:20"
- * - "01 ago 26" -> (defaults time to 19:27)
- * - "Dom 2", "Dom 19", "Mar 2", "Sab 9"
- * - "14/08/2026 00:20"
- * - "2026-08-14 00:20"
+ * Supports:
+ * - "14 Ago 2026, 00:20", "14 Agosto 2026 08:30", "01 ago 26"
+ * - "Dom 2", "Dom 19", "Mar 2", "Sab 9", "Dom 14 Ago 2026 00:20"
+ * - "14/08/2026 00:20", "14.08.2026 08:30", "14-08-2026"
+ * - "2026-08-14 00:20", "2026/08/14", "2026.08.14"
+ * - "14/08/26", "14.08.26", "14-08-26"
+ * - AM/PM times e.g. "8:30 PM", "08:30 AM"
+ * - Time with seconds e.g. "08:30:00"
+ * - Time with dots e.g. "08.30"
  */
 export function parseDateTimeString(
   raw: string, 
-  defaultTime: string = '19:27',
+  defaultTime: string = '12:00',
   referenceYearMonth: { year: string; month: string } = { year: '2026', month: '08' }
 ): { date: string; time: string; timestamp: number } | null {
   if (!raw) return null;
-  const clean = raw.trim().replace(/,/g, ' ');
+  let clean = raw.trim().replace(/,/g, ' ').replace(/\s+/g, ' ');
+
+  // Extract trailing time if present (e.g. "00:20", "08:30:15", "8.30", "8:30 PM", "8:30 AM")
+  let extractedTime: string | null = null;
+  const timeRegex = /(?:^|\s+)(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?(?:\s*(?:am|pm))?)\s*$/i;
+  const timeMatch = clean.match(timeRegex);
+  if (timeMatch) {
+    extractedTime = formatTime24h(timeMatch[1]);
+    // Remove the time portion to parse the date cleanly
+    clean = clean.slice(0, timeMatch.index).trim();
+  }
+
+  const finalTime = extractedTime ? extractedTime : formatTime24h(defaultTime);
 
   // 1. Pattern: Day-of-week + Day-of-month (e.g. "Dom 2", "Dom 19", "Mar 2", "Sab 9", "Lun 15")
-  const dayOfWeekPattern = /^(?:dom|lun|mar|mer|gio|ven|sab|sun|mon|tue|wed|thu|fri|sat)[a-zà-ú]*\.?\s+(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?$/i;
+  const dayOfWeekPattern = /^(?:dom|lun|mar|mer|gio|ven|sab|sun|mon|tue|wed|thu|fri|sat)[a-zà-ú]*\.?\s+(\d{1,2})$/i;
   const matchDow = clean.match(dayOfWeekPattern);
   if (matchDow) {
     const day = matchDow[1].padStart(2, '0');
-    const hour = (matchDow[2] || defaultTime.split(':')[0] || '19').padStart(2, '0');
-    const minute = (matchDow[3] || defaultTime.split(':')[1] || '27').padStart(2, '0');
     const dateStr = `${referenceYearMonth.year}-${referenceYearMonth.month}-${day}`;
-    const timeStr = `${hour}:${minute}`;
-    const timestamp = new Date(`${dateStr}T${timeStr}:00`).getTime();
-    return { date: dateStr, time: timeStr, timestamp: isNaN(timestamp) ? Date.now() : timestamp };
+    const timestamp = new Date(`${dateStr}T${finalTime}:00`).getTime();
+    return { date: dateStr, time: finalTime, timestamp: isNaN(timestamp) ? Date.now() : timestamp };
   }
 
-  // 2. Italian Month Pattern with 2 or 4 digit year: "14 Ago 2026 00:20" or "01 ago 26" or "5 ago 2026"
-  const textMonthRegex = /^(\d{1,2})\s+([a-zA-Zà-úÀ-Ú]+)\s+(\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/;
+  // Optional Day of week prefix (e.g. "Dom 14 Ago 2026" or "Lun 14/08/2026")
+  const dowPrefixPattern = /^(?:dom|lun|mar|mer|gio|ven|sab|sun|mon|tue|wed|thu|fri|sat)[a-zà-ú]*\.?\s+/i;
+  if (dowPrefixPattern.test(clean)) {
+    clean = clean.replace(dowPrefixPattern, '').trim();
+  }
+
+  // 2. Italian Month Pattern with 2 or 4 digit year (e.g. "14 Ago 2026", "01 ago 26", "14-Ago-2026", "14.ago.26", "5 agosto 2026")
+  const textMonthRegex = /^(\d{1,2})[\s\-\.\/]+([a-zA-Zà-úÀ-Ú]+)(?:[\s\-\.\/]+(\d{2,4}))?$/;
   const matchText = clean.match(textMonthRegex);
   if (matchText) {
     const day = matchText[1].padStart(2, '0');
     const monthWord = matchText[2].toLowerCase();
-    let year = matchText[3];
+    let year = matchText[3] || referenceYearMonth.year;
     if (year.length === 2) {
-      year = `20${year}`;
+      const yNum = parseInt(year, 10);
+      year = yNum < 50 ? `20${year}` : `19${year}`;
     }
-    const hour = (matchText[4] || defaultTime.split(':')[0] || '19').padStart(2, '0');
-    const minute = (matchText[5] || defaultTime.split(':')[1] || '27').padStart(2, '0');
 
     const monthNum = ITALIAN_MONTHS[monthWord] || ITALIAN_MONTHS[monthWord.slice(0, 3)];
     if (monthNum) {
       const dateStr = `${year}-${monthNum}-${day}`;
-      const timeStr = `${hour}:${minute}`;
-      const timestamp = new Date(`${dateStr}T${timeStr}:00`).getTime();
-      return { date: dateStr, time: timeStr, timestamp: isNaN(timestamp) ? Date.now() : timestamp };
+      const timestamp = new Date(`${dateStr}T${finalTime}:00`).getTime();
+      return { date: dateStr, time: finalTime, timestamp: isNaN(timestamp) ? Date.now() : timestamp };
     }
   }
 
-  // 3. Standard Date with Slashes or Dashes (DD/MM/YYYY or YYYY-MM-DD or DD/MM/YY)
-  const slashRegex = /^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2}))?/;
-  const matchSlash = clean.match(slashRegex);
-  if (matchSlash) {
-    let year = matchSlash[1];
-    let month = matchSlash[2].padStart(2, '0');
-    let day = matchSlash[3];
-    const hour = (matchSlash[4] || defaultTime.split(':')[0] || '19').padStart(2, '0');
-    const minute = (matchSlash[5] || defaultTime.split(':')[1] || '27').padStart(2, '0');
+  // 3. Numeric Date with Slashes, Dashes or Dots (DD/MM/YYYY or YYYY-MM-DD or DD.MM.YYYY or DD/MM/YY)
+  const numericDateRegex = /^(\d{1,4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,4})$/;
+  const matchNum = clean.match(numericDateRegex);
+  if (matchNum) {
+    let p1 = matchNum[1];
+    let p2 = matchNum[2];
+    let p3 = matchNum[3];
 
-    if (year.length === 2 || year.length === 1) {
-      // DD/MM/YYYY format
-      const tempDay = year.padStart(2, '0');
-      const tempYear = day.length === 2 ? `20${day}` : day;
-      day = tempDay;
-      year = tempYear;
-    } else if (year.length === 4) {
-      // YYYY/MM/DD
-      day = day.padStart(2, '0');
+    let year = '';
+    let month = '';
+    let day = '';
+
+    if (p1.length === 4) {
+      // YYYY-MM-DD
+      year = p1;
+      month = p2.padStart(2, '0');
+      day = p3.padStart(2, '0');
+    } else if (p3.length === 4) {
+      // DD/MM/YYYY or MM/DD/YYYY
+      year = p3;
+      const n1 = parseInt(p1, 10);
+      const n2 = parseInt(p2, 10);
+      if (n1 > 12 && n2 <= 12) {
+        // DD/MM/YYYY
+        day = p1.padStart(2, '0');
+        month = p2.padStart(2, '0');
+      } else if (n2 > 12 && n1 <= 12) {
+        // MM/DD/YYYY
+        month = p1.padStart(2, '0');
+        day = p2.padStart(2, '0');
+      } else {
+        // Default Italian: DD/MM/YYYY
+        day = p1.padStart(2, '0');
+        month = p2.padStart(2, '0');
+      }
+    } else if (p1.length === 2 && p3.length === 2) {
+      // 2-digit year: e.g. 14/08/26 or 26-08-14
+      const n1 = parseInt(p1, 10);
+      const n3 = parseInt(p3, 10);
+      if (n1 > 31 && n3 <= 31) {
+        // YY-MM-DD
+        year = n1 < 50 ? `20${p1}` : `19${p1}`;
+        month = p2.padStart(2, '0');
+        day = p3.padStart(2, '0');
+      } else {
+        // DD-MM-YY
+        year = n3 < 50 ? `20${p3}` : `19${p3}`;
+        month = p2.padStart(2, '0');
+        day = p1.padStart(2, '0');
+      }
+    } else {
+      // Fallback
+      day = p1.padStart(2, '0');
+      month = p2.padStart(2, '0');
+      year = p3.length === 2 ? `20${p3}` : p3;
     }
 
     const dateStr = `${year}-${month}-${day}`;
-    const timeStr = `${hour}:${minute}`;
-    const timestamp = new Date(`${dateStr}T${timeStr}:00`).getTime();
-    return { date: dateStr, time: timeStr, timestamp: isNaN(timestamp) ? Date.now() : timestamp };
+    const timestamp = new Date(`${dateStr}T${finalTime}:00`).getTime();
+    return { date: dateStr, time: finalTime, timestamp: isNaN(timestamp) ? Date.now() : timestamp };
   }
 
   // 4. Fallback generic JS Date
@@ -211,10 +247,11 @@ export function parseDateTimeString(
     const d = String(parsed.getDate()).padStart(2, '0');
     const hh = String(parsed.getHours()).padStart(2, '0');
     const mm = String(parsed.getMinutes()).padStart(2, '0');
+    const finalTimeJs = extractedTime || (raw.includes(':') ? `${hh}:${mm}` : finalTime);
     return {
       date: `${y}-${m}-${d}`,
-      time: `${hh}:${mm}`,
-      timestamp: parsed.getTime()
+      time: finalTimeJs,
+      timestamp: new Date(`${y}-${m}-${d}T${finalTimeJs}:00`).getTime()
     };
   }
 
@@ -254,267 +291,7 @@ export function parseHealthCsv(
   const headerLine = lines[0].join(' ').toLowerCase();
 
   // =========================================================================
-  // 1. DETECT FASTING / DIGIUNO FORMAT
-  // Header: Data, Inizio, Fine (Rottura), Durata (Ore), Protocollo, Stadio Metabolico, Glicemia Inizio, Glicemia Fine, Note / Dettagli
-  // or Data Inizio, Ora Inizio, Data Fine, Ora Fine, Protocollo, Target, Glicemia...
-  // =========================================================================
-  const isFastingFormat = headerLine.includes('rottura') || 
-                          (headerLine.includes('digiuno') && (headerLine.includes('durata') || headerLine.includes('inizio') || headerLine.includes('protocollo') || headerLine.includes('piano'))) ||
-                          ((headerLine.includes('protocollo') || headerLine.includes('piano')) && headerLine.includes('durata')) ||
-                          (headerLine.includes('glicemia inizio') || headerLine.includes('glicemia fine')) ||
-                          (headerLine.includes('fasting') && (headerLine.includes('duration') || headerLine.includes('plan') || headerLine.includes('protocol')));
-
-  if (isFastingFormat) {
-    const fastingSubType = subTypes.find(s => s.id === 'sub_fasting') || { id: 'sub_fasting', name: 'Digiuno', unit: 'ore' };
-    
-    let dateCol = header.findIndex(h => h === 'data' || h.startsWith('data') || h.includes('date') || h.includes('giorno'));
-    let startCol = header.findIndex(h => h === 'inizio' || h.startsWith('inizio') || h.includes('start') || h.includes('ora inizio'));
-    let endCol = header.findIndex(h => h.includes('fine') || h.includes('rottura') || h.includes('end') || h.includes('ora fine'));
-    let durCol = header.findIndex(h => h.includes('durata') || h.includes('duration') || h.includes('ore'));
-    let protoCol = header.findIndex(h => h.includes('protocollo') || h.includes('protocol') || h.includes('piano') || h.includes('plan'));
-    let stageCol = header.findIndex(h => h.includes('stadio') || h.includes('stage') || h.includes('metabolic'));
-    let gluStartCol = header.findIndex(h => (h.includes('glicemia') || h.includes('glucose')) && h.includes('inizio'));
-    let gluEndCol = header.findIndex(h => (h.includes('glicemia') || h.includes('glucose')) && (h.includes('fine') || h.includes('rottura')));
-    let noteCol = header.findIndex(h => h.includes('note') || h.includes('dettagli') || h.includes('comment'));
-
-    if (dateCol === -1) dateCol = 0;
-
-    for (let i = 1; i < lines.length; i++) {
-      const row = lines[i];
-      if (row.length === 0 || (row.length === 1 && !row[0])) continue;
-
-      const rawDate = (row[dateCol] || '').trim();
-      const rawStart = startCol >= 0 && row[startCol] ? row[startCol].trim() : '20:00';
-      const rawEnd = endCol >= 0 && row[endCol] ? row[endCol].trim() : '12:00';
-      let rawDur = durCol >= 0 && row[durCol] ? row[durCol].trim() : '';
-      let rawProto = protoCol >= 0 && row[protoCol] ? row[protoCol].trim() : '';
-      const rawStage = stageCol >= 0 && row[stageCol] ? row[stageCol].trim() : '';
-      const rawGluStart = gluStartCol >= 0 && row[gluStartCol] ? row[gluStartCol].trim().replace(/[^\d.,]/g, '').replace(',', '.') : '';
-      const rawGluEnd = gluEndCol >= 0 && row[gluEndCol] ? row[gluEndCol].trim().replace(/[^\d.,]/g, '').replace(',', '.') : '';
-      const rawNote = noteCol >= 0 && row[noteCol] ? row[noteCol].trim() : '';
-
-      // Date parsing
-      let baseDateStr = rawDate;
-      const dt = parseDateTimeString(rawDate || rawEnd || new Date().toISOString().slice(0, 10), '12:00');
-      if (!dt) {
-        invalidRows.push({
-          rowNumber: i + 1,
-          raw: row.join(' | '),
-          error: `Data digiuno non valida: "${rawDate}"`
-        });
-        continue;
-      }
-      baseDateStr = dt.date;
-
-      // Extract times
-      let startTime = '20:00';
-      let startDate = baseDateStr;
-      let endTime = '12:00';
-      let endDate = baseDateStr;
-
-      if (rawStart.includes(':')) {
-        const parts = rawStart.split(' ');
-        if (parts.length > 1 && parts[0].includes('-')) {
-          startDate = parts[0];
-          startTime = parts[1].slice(0, 5);
-        } else {
-          startTime = rawStart.slice(0, 5);
-        }
-      }
-
-      if (rawEnd.includes(':')) {
-        const parts = rawEnd.split(' ');
-        if (parts.length > 1 && parts[0].includes('-')) {
-          endDate = parts[0];
-          endTime = parts[1].slice(0, 5);
-        } else {
-          endTime = rawEnd.slice(0, 5);
-        }
-      }
-
-      // Calculate duration if needed
-      let durNum = parseFloat(rawDur.replace(',', '.'));
-      if (isNaN(durNum) || durNum <= 0) {
-        // Compute from start & end time
-        const startTimestamp = new Date(`${startDate}T${startTime}:00`).getTime();
-        let endTimestamp = new Date(`${endDate}T${endTime}:00`).getTime();
-        if (endTimestamp <= startTimestamp) {
-          // Crosses midnight, so end is next day
-          endTimestamp += 24 * 3600 * 1000;
-        }
-        if (!isNaN(startTimestamp) && !isNaN(endTimestamp) && endTimestamp > startTimestamp) {
-          durNum = Math.round(((endTimestamp - startTimestamp) / (3600 * 1000)) * 10) / 10;
-        } else {
-          durNum = 16.0;
-        }
-      }
-
-      // Protocol deduce
-      if (!rawProto || rawProto === '-') {
-        if (durNum >= 22) rawProto = 'OMAD (23:1)';
-        else if (durNum >= 19.5) rawProto = '20:4';
-        else if (durNum >= 17.5) rawProto = '18:6';
-        else if (durNum >= 15) rawProto = '16:8';
-        else if (durNum >= 13.5) rawProto = '14:10';
-        else if (durNum >= 11.5) rawProto = '12:12';
-        else rawProto = 'Personalizzato';
-      }
-
-      let targetHours = 16;
-      if (rawProto.includes('20')) targetHours = 20;
-      else if (rawProto.includes('18')) targetHours = 18;
-      else if (rawProto.includes('OMAD') || rawProto.includes('23')) targetHours = 23;
-      else if (rawProto.includes('14')) targetHours = 14;
-      else if (rawProto.includes('12')) targetHours = 12;
-      else if (durNum > 0) targetHours = Math.floor(durNum);
-
-      // Build structured note
-      const noteDetails: string[] = [];
-      if (rawProto) noteDetails.push(`Piano: ${rawProto}`);
-      if (rawStage) noteDetails.push(`Stadio: ${rawStage}`);
-      if (rawGluStart) noteDetails.push(`Glicemia Inizio: ${rawGluStart} mg/dL`);
-      if (rawGluEnd) noteDetails.push(`Glicemia Fine: ${rawGluEnd} mg/dL`);
-      if (rawNote) noteDetails.push(rawNote);
-
-      const matchedCategory = findCategoryForTime(categories, endTime);
-
-      validRows.push({
-        id: `fasting_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
-        rawType: 'Digiuno Intermittente',
-        subTypeId: fastingSubType.id,
-        subTypeName: fastingSubType.name,
-        date: endDate,
-        time: endTime,
-        value: String(durNum).replace(',', '.'),
-        unit: 'ore',
-        fastingStartDate: startDate,
-        fastingStartTime: startTime,
-        fastingEndDate: endDate,
-        fastingEndTime: endTime,
-        fastingProtocol: rawProto,
-        fastingTargetHours: targetHours,
-        fastingStartGlucose: rawGluStart ? parseFloat(rawGluStart) : undefined,
-        fastingEndGlucose: rawGluEnd ? parseFloat(rawGluEnd) : undefined,
-        fastingIsInProgress: false,
-        note: noteDetails.join(' | '),
-        categoryId: matchedCategory.id,
-        categoryName: matchedCategory.name,
-        timestamp: new Date(`${endDate}T${endTime}:00`).getTime() || dt.timestamp,
-        isValid: true
-      });
-    }
-
-    validRows.sort((a, b) => b.timestamp - a.timestamp);
-    const dateRange = validRows.length > 0 ? { start: validRows[validRows.length - 1].date, end: validRows[0].date } : null;
-    return {
-      totalRows: validRows.length + invalidRows.length,
-      validRows,
-      invalidRows,
-      dateRange,
-      detectedFormat: 'fasting',
-      targetSubTypes: ['sub_fasting'],
-      categoryLabel: 'Digiuno Intermittente'
-    };
-  }
-
-  // =========================================================================
-  // 2. DETECT MEDICATIONS / FARMACI FORMAT
-  // Header: Nome Farmaco, Dosaggio, Orario / Frequenza, Istruzioni, Attivo (Si/No)
-  // or Data, Ora, Tipo, Farmaco, Dose, Note
-  // =========================================================================
-  const isMedicationFormat = (headerLine.includes('farmaco') || headerLine.includes('farmaci') || headerLine.includes('medication')) &&
-                             (headerLine.includes('dosaggio') || headerLine.includes('dosage') || headerLine.includes('orario') || headerLine.includes('istruzioni') || headerLine.includes('schedule') || headerLine.includes('attivo'));
-
-  if (isMedicationFormat) {
-    const medSubType = subTypes.find(s => s.id === 'sub_medication') || { id: 'sub_medication', name: 'Farmaco', unit: 'dose' };
-    
-    let nameCol = header.findIndex(h => h.includes('nome') || h.includes('farmaco') || h.includes('medication'));
-    let doseCol = header.findIndex(h => h.includes('dosaggio') || h.includes('dosage') || h.includes('dose'));
-    let schedCol = header.findIndex(h => h.includes('orario') || h.includes('frequenza') || h.includes('schedule') || h.includes('fascia'));
-    let instCol = header.findIndex(h => h.includes('istruzioni') || h.includes('instruction') || h.includes('indicazioni'));
-    let actCol = header.findIndex(h => h.includes('attivo') || h.includes('active') || h.includes('stato'));
-    let dateCol = header.findIndex(h => h === 'data' || h.startsWith('data') || h.includes('date'));
-    let timeCol = header.findIndex(h => h === 'ora' || h.startsWith('ora') || h.includes('time'));
-    let noteCol = header.findIndex(h => h.includes('note') || h.includes('comment'));
-
-    if (nameCol === -1) nameCol = 0;
-
-    for (let i = 1; i < lines.length; i++) {
-      const row = lines[i];
-      if (row.length === 0 || (row.length === 1 && !row[0])) continue;
-
-      const rawName = (row[nameCol] || '').trim();
-      if (!rawName) continue;
-
-      const rawDose = doseCol >= 0 && row[doseCol] ? row[doseCol].trim() : '1 compressa';
-      const rawSched = schedCol >= 0 && row[schedCol] ? row[schedCol].trim() : 'Mattina';
-      const rawInst = instCol >= 0 && row[instCol] ? row[instCol].trim() : '';
-      const rawAct = actCol >= 0 && row[actCol] ? row[actCol].trim().toLowerCase() : 'sì';
-      const isActive = rawAct.startsWith('s') || rawAct.startsWith('y') || rawAct.includes('attivo') || rawAct === '1' || rawAct === 'true';
-
-      const rawDate = dateCol >= 0 && row[dateCol] ? row[dateCol].trim() : '';
-      const rawTime = timeCol >= 0 && row[timeCol] ? row[timeCol].trim() : '';
-      const rawNote = noteCol >= 0 && row[noteCol] ? row[noteCol].trim() : '';
-
-      // Infer time from schedule if time not provided
-      let defaultTime = '08:00';
-      const ls = rawSched.toLowerCase();
-      if (ls.includes('colazione') || ls.includes('mattina') || ls.includes('risveglio')) defaultTime = '08:00';
-      else if (ls.includes('pranzo') || ls.includes('mezzogiorno')) defaultTime = '13:00';
-      else if (ls.includes('cena') || ls.includes('sera')) defaultTime = '20:00';
-      else if (ls.includes('notte') || ls.includes('coricarsi') || ls.includes('letto')) defaultTime = '22:30';
-
-      const dt = parseDateTimeString(rawDate || new Date().toISOString().slice(0, 10), rawTime || defaultTime);
-      const rowDate = dt ? dt.date : new Date().toISOString().slice(0, 10);
-      const rowTime = dt ? dt.time : defaultTime;
-      const rowTs = dt ? dt.timestamp : Date.now() - i * 60000;
-
-      const matchedCategory = findCategoryForTime(categories, rowTime);
-
-      const notePieces: string[] = [];
-      notePieces.push(`Farmaco: ${rawName}`);
-      if (rawDose) notePieces.push(`Dose: ${rawDose}`);
-      if (rawSched) notePieces.push(`Orario: ${rawSched}`);
-      if (rawInst) notePieces.push(`Istruzioni: ${rawInst}`);
-      if (rawNote) notePieces.push(rawNote);
-
-      validRows.push({
-        id: `med_import_${rowTs}_${Math.random().toString(36).slice(2, 7)}`,
-        rawType: 'Farmaci / Terapia',
-        subTypeId: medSubType.id,
-        subTypeName: medSubType.name,
-        date: rowDate,
-        time: rowTime,
-        value: rawDose || '1 dose',
-        unit: 'dose',
-        medicationName: rawName,
-        medicationDosage: rawDose,
-        medicationSchedule: rawSched,
-        medicationInstructions: rawInst,
-        medicationActive: isActive,
-        note: notePieces.join(' | '),
-        categoryId: matchedCategory.id,
-        categoryName: matchedCategory.name,
-        timestamp: rowTs,
-        isValid: true
-      });
-    }
-
-    validRows.sort((a, b) => b.timestamp - a.timestamp);
-    const dateRange = validRows.length > 0 ? { start: validRows[validRows.length - 1].date, end: validRows[0].date } : null;
-    return {
-      totalRows: validRows.length + invalidRows.length,
-      validRows,
-      invalidRows,
-      dateRange,
-      detectedFormat: 'medication',
-      targetSubTypes: ['sub_medication'],
-      categoryLabel: 'Farmaci / Terapie'
-    };
-  }
-
-  // =========================================================================
-  // 3. DETECT NUTRITION SUMMARY TABLE FORMAT
+  // 1. DETECT NUTRITION SUMMARY TABLE FORMAT
   // Header: Data,Alimenti (Cal),% GDA,Grassi (g),Proteine (g),Carboidrati (g),Esercizio (Cal),Netto (Cal)
   // =========================================================================
   const isNutritionFormat = headerLine.includes('alimenti') || 
@@ -524,6 +301,7 @@ export function parseHealthCsv(
   if (isNutritionFormat) {
     let dateCol = header.findIndex(h => h === 'data' || h.startsWith('data') || h.includes('date') || h.includes('giorno'));
     let timeCol = header.findIndex(h => h === 'ora' || h.startsWith('ora') || h.includes('time'));
+    let typeCol = header.findIndex(h => h === 'tipo' || h.startsWith('tipo') || h.includes('type'));
     let calCol = header.findIndex(h => h.includes('alimenti') || h.includes('cal') || h.includes('calorie') || h.includes('energy'));
     let gdaCol = header.findIndex(h => h.includes('gda'));
     let fatCol = header.findIndex(h => h.includes('grassi') || h.includes('fat'));
@@ -543,6 +321,7 @@ export function parseHealthCsv(
 
       const rawDate = (row[dateCol] || '').trim();
       const rawTime = timeCol >= 0 && row[timeCol] ? row[timeCol].trim() : '12:00';
+      const rawType = typeCol >= 0 && row[typeCol] ? row[typeCol].trim() : 'Alimenti';
       const rawCal = calCol >= 0 && row[calCol] ? row[calCol].trim() : '';
       const rawGda = gdaCol >= 0 && row[gdaCol] ? row[gdaCol].trim() : '';
       const rawFat = fatCol >= 0 && row[fatCol] ? row[fatCol].trim() : '';
@@ -566,15 +345,17 @@ export function parseHealthCsv(
         continue;
       }
 
+      const formattedTime = formatTime24h(dt.time);
+
       const cleanCal = rawCal.replace(/[^\d.,]/g, '').replace(',', '.');
       const cleanCarb = rawCarb.replace(/[^\d.,]/g, '').replace(',', '.');
       const cleanProt = rawProt.replace(/[^\d.,]/g, '').replace(',', '.');
       const cleanFat = rawFat.replace(/[^\d.,]/g, '').replace(',', '.');
       const cleanGda = rawGda.replace(/[^\d.,]/g, '').replace(',', '.');
 
-      // Value shown in main entry: carbs if available, otherwise calories
-      const mainVal = cleanCarb && cleanCarb !== '-' && cleanCarb !== '' ? cleanCarb : (cleanCal && cleanCal !== '-' ? cleanCal : '0');
-      const unit = cleanCarb && cleanCarb !== '-' && cleanCarb !== '' ? 'g' : 'Cal';
+      // Value shown in main entry: calories if available, otherwise carbs
+      const mainVal = cleanCal && cleanCal !== '-' && cleanCal !== '' ? cleanCal : (cleanCarb && cleanCarb !== '-' ? cleanCarb : '0');
+      const unit = cleanCal && cleanCal !== '-' && cleanCal !== '' ? 'Cal' : 'g';
 
       // Build readable note
       const noteParts: string[] = [];
@@ -589,15 +370,15 @@ export function parseHealthCsv(
         noteParts.push(rawNote);
       }
 
-      const matchedCategory = findCategoryForTime(categories, dt.time);
+      const matchedCategory = findCategoryForTime(categories, formattedTime);
 
       validRows.push({
         id: `nutrition_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
-        rawType: 'Riepilogo nutrizionale',
+        rawType: rawType || 'Alimenti',
         subTypeId: foodSubType.id,
         subTypeName: foodSubType.name,
         date: dt.date,
-        time: dt.time,
+        time: formattedTime,
         value: mainVal,
         unit: unit,
         calories: cleanCal !== '-' && cleanCal !== '' ? cleanCal : undefined,
@@ -718,6 +499,8 @@ export function parseHealthCsv(
       continue;
     }
 
+    const formattedTime = formatTime24h(dt.time);
+
     const lowerType = rawType.toLowerCase();
     const lowerVal = rawVal.toLowerCase();
     const lowerUnit = rawUnit.toLowerCase();
@@ -773,7 +556,7 @@ export function parseHealthCsv(
         ? `${systolic}/${diastolic}${pulse ? ` - ${pulse} bpm` : ''}` 
         : (systolic || rawVal);
 
-      const matchedCategory = findCategoryForTime(categories, dt.time);
+      const matchedCategory = findCategoryForTime(categories, formattedTime);
 
       validRows.push({
         id: `bp_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
@@ -781,7 +564,7 @@ export function parseHealthCsv(
         subTypeId: bpSubType.id,
         subTypeName: bpSubType.name,
         date: dt.date,
-        time: dt.time,
+        time: formattedTime,
         value: formattedVal,
         systolic,
         diastolic,
@@ -818,7 +601,7 @@ export function parseHealthCsv(
         continue;
       }
 
-      const matchedCategory = findCategoryForTime(categories, dt.time);
+      const matchedCategory = findCategoryForTime(categories, formattedTime);
 
       validRows.push({
         id: `weight_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
@@ -826,7 +609,7 @@ export function parseHealthCsv(
         subTypeId: weightSubType.id,
         subTypeName: weightSubType.name,
         date: dt.date,
-        time: dt.time, // Defaults to 19:27 if not present
+        time: formattedTime, // Defaults to 19:27 if not present
         value: cleanVal,
         unit: 'kg',
         mealTiming,
@@ -861,7 +644,7 @@ export function parseHealthCsv(
       subType = exerciseSubType;
     }
 
-    const matchedCategory = findCategoryForTime(categories, dt.time);
+    const matchedCategory = findCategoryForTime(categories, formattedTime);
 
     validRows.push({
       id: `csv_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
@@ -869,7 +652,7 @@ export function parseHealthCsv(
       subTypeId: subType.id,
       subTypeName: subType.name,
       date: dt.date,
-      time: dt.time,
+      time: formattedTime,
       value: cleanVal,
       unit: rawUnit || subType.unit,
       mealTiming,
@@ -892,7 +675,7 @@ export function parseHealthCsv(
   }
 
   const uniqueSubTypes = Array.from(new Set(validRows.map(r => r.subTypeId)));
-  let detectedFormat: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'fasting' | 'medication' | 'generic' = 'generic';
+  let detectedFormat: 'glucose' | 'pressure' | 'weight' | 'nutrition' | 'generic' = 'generic';
   let categoryLabel = 'Tutte le Letture';
   let targetSubTypes = uniqueSubTypes;
 
@@ -910,12 +693,9 @@ export function parseHealthCsv(
     } else if (single === 'sub_food') {
       detectedFormat = 'nutrition';
       categoryLabel = 'Nutrizione';
-    } else if (single === 'sub_fasting') {
-      detectedFormat = 'fasting';
-      categoryLabel = 'Digiuno Intermittente';
     } else if (single === 'sub_medication') {
-      detectedFormat = 'medication';
-      categoryLabel = 'Farmaci / Terapie';
+      detectedFormat = 'generic';
+      categoryLabel = 'Farmaci / Insulina';
     } else if (single === 'sub_exercise') {
       detectedFormat = 'generic';
       categoryLabel = 'Esercizio Fisico';
@@ -972,16 +752,6 @@ export function convertToLogEntryItems(rows: ParsedCsvRow[]): LogEntryItem[] {
     mealTiming: r.mealTiming,
     note: r.note,
     timestamp: r.timestamp,
-    reminder: false,
-    // Fasting fields
-    fastingStartDate: r.fastingStartDate,
-    fastingStartTime: r.fastingStartTime,
-    fastingEndDate: r.fastingEndDate,
-    fastingEndTime: r.fastingEndTime,
-    fastingProtocol: r.fastingProtocol,
-    fastingTargetHours: r.fastingTargetHours,
-    fastingStartGlucose: r.fastingStartGlucose !== undefined ? Number(r.fastingStartGlucose) : undefined,
-    fastingEndGlucose: r.fastingEndGlucose !== undefined ? Number(r.fastingEndGlucose) : undefined,
-    fastingIsInProgress: r.fastingIsInProgress
+    reminder: false
   }));
 }

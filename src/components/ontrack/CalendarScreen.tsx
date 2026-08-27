@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { OnTrackHeader } from './OnTrackHeader';
 import { WholeAppleIcon, AppleCoreIcon } from './AppleIcons';
 import { LogEntryItem, HealthCategory, HealthSubType } from '../../types/ontrack';
+import { formatTime24h } from '../../utils/fastingHelpers';
 import { exportElementToPdf } from '../../utils/pdfExport';
 import { loadUserSettings } from '../../utils/ontrackStorage';
 import {
@@ -83,6 +84,29 @@ const getYearMonth = (dateStr: string) => {
     }
   } catch (e) {}
   return { year: '', month: '' };
+};
+
+/**
+ * Calculates the exact vertical Y percentage (from top) corresponding to the lateral target bands:
+ * - Hyperglycemia (> 180 mg/dL): Red zone at top 0% - 30% (scale 300 to 180 mg/dL)
+ * - Normal Target (70 - 180 mg/dL): Green zone at middle 30% - 80% (scale 180 to 70 mg/dL)
+ * - Hypoglycemia (< 70 mg/dL): Blue zone at bottom 80% - 100% (scale 70 to 40 mg/dL)
+ */
+const calcGlucoseYPercent = (valNum: number): number => {
+  if (isNaN(valNum) || valNum <= 0) return 55;
+  if (valNum >= 180) {
+    // Hyperglycemia zone: 180 maps to exactly 30%, 300 maps to 4%
+    const ratio = Math.min(1, (valNum - 180) / (300 - 180));
+    return Math.max(4, 30 - ratio * 26);
+  } else if (valNum >= 70) {
+    // Target normal zone: 180 maps to exactly 30%, 70 maps to exactly 80%
+    const ratio = (valNum - 70) / (180 - 70);
+    return 80 - ratio * 50;
+  } else {
+    // Hypoglycemia zone: 70 maps to exactly 80%, 40 maps to 96%
+    const ratio = Math.max(0, (valNum - 40) / (70 - 40));
+    return Math.min(96, 100 - ratio * 20);
+  }
 };
 
 export const CalendarScreen: React.FC<CalendarScreenProps> = ({
@@ -780,7 +804,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             <div className="bg-white dark:bg-[#1a1d24] border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xs p-3.5 sm:p-4">
 
               {/* Hourly Ticks Header */}
-              <div className="grid grid-cols-8 text-center text-xs font-bold text-stone-500 dark:text-stone-400 pb-2 border-b border-stone-200 dark:border-stone-800 pl-4 pr-4">
+              <div className="grid grid-cols-8 text-center text-xs font-bold text-stone-500 dark:text-stone-400 pb-2 border-b border-stone-200 dark:border-stone-800 ml-8 sm:ml-9 mr-8 sm:mr-9">
                 <span>00</span>
                 <span>03</span>
                 <span>06</span>
@@ -791,14 +815,27 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                 <span>21</span>
               </div>
 
-              {/* Graph Plot Area with Side Target Bands */}
+              {/* Graph Plot Area with Side Target Bands and Reference Values */}
               <div className="relative h-64 sm:h-72 w-full my-2.5 bg-stone-50/50 dark:bg-stone-900/50 border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden flex">
 
-                {/* Left Side Target Range Stripe */}
-                <div className="w-2.5 h-full flex flex-col shrink-0 border-r border-stone-200 dark:border-stone-800">
+                {/* Left Lateral Bar with Target Ranges & Numerical Values */}
+                <div className="w-8 sm:w-9 h-full relative shrink-0 border-r border-stone-200 dark:border-stone-800 select-none flex flex-col overflow-hidden">
                   <div className="h-[30%] bg-[#c2185b]" title="Iperglicemia (> 180 mg/dL)" />
                   <div className="h-[50%] bg-[#8cc63f]" title="Target Normale (70 - 180 mg/dL)" />
                   <div className="h-[20%] bg-[#0288d1]" title="Ipoglicemia (< 70 mg/dL)" />
+
+                  <span className="absolute top-1 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs">
+                    300
+                  </span>
+                  <span className="absolute top-[30%] -translate-y-1/2 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs bg-black/25 py-0.5">
+                    180
+                  </span>
+                  <span className="absolute top-[80%] -translate-y-1/2 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs bg-black/25 py-0.5">
+                    70
+                  </span>
+                  <span className="absolute bottom-1 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs">
+                    40
+                  </span>
                 </div>
 
                 {/* Main 24-Hour Grid Canvas */}
@@ -826,24 +863,29 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                       const totalMinutes = (h || 0) * 60 + (m || 0);
                       const leftPercent = Math.min(100, Math.max(0, (totalMinutes / 1440) * 100));
 
-                      // Scale Y: 40 mg/dL (bottom) to 300 mg/dL (top)
-                      const yPercent = Math.min(92, Math.max(8, 100 - ((valNum - 40) / 260) * 100));
+                      // Scale Y precisely aligned with target bands (0-30% red >180, 30-80% green 70-180, 80-100% blue <70)
+                      const yPercent = calcGlucoseYPercent(valNum);
 
                       return (
                         <button
                           key={e.id}
                           onClick={() => setSelectedEntry(e)}
                           style={{ left: `${leftPercent}%`, top: `${yPercent}%` }}
-                          className="absolute -translate-x-1/2 -translate-y-1/2 group z-20 cursor-pointer"
+                          className="absolute -translate-x-1/2 -translate-y-1/2 group z-20 cursor-pointer flex flex-col items-center"
                           title={`${e.time} - ${e.value} mg/dL (${e.categoryName})`}
                         >
+                          {/* Value label directly visible on graph */}
+                          <span className="mb-0.5 text-[10px] font-black leading-none text-[#c2185b] dark:text-[#f48fb1] bg-white/95 dark:bg-stone-900/95 px-1 py-0.5 rounded shadow-xs border border-rose-200/80 dark:border-rose-900/60 pointer-events-none whitespace-nowrap">
+                            {e.value}
+                          </span>
+
                           {/* Circle matching screenshot (magenta circle with white border / center dot) */}
-                          <div className="w-5 h-5 rounded-full border-[3px] border-[#c2185b] bg-white dark:bg-stone-900 group-hover:scale-125 transition-transform shadow-md flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#c2185b]" />
+                          <div className="w-4 h-4 rounded-full border-[2.5px] border-[#c2185b] bg-white dark:bg-stone-900 group-hover:scale-125 transition-transform shadow-md flex items-center justify-center">
+                            <div className="w-1 h-1 rounded-full bg-[#c2185b]" />
                           </div>
 
                           {/* Tooltip on hover */}
-                          <div className="hidden group-hover:block absolute bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 dark:bg-stone-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30">
+                          <div className="hidden group-hover:block absolute bottom-10 left-1/2 -translate-x-1/2 bg-stone-900 dark:bg-stone-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30">
                             {e.time}: {e.value} {e.unit}
                           </div>
                         </button>
@@ -852,11 +894,24 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                   )}
                 </div>
 
-                {/* Right Side Target Range Stripe */}
-                <div className="w-2.5 h-full flex flex-col shrink-0 border-l border-stone-200 dark:border-stone-800">
-                  <div className="h-[30%] bg-[#c2185b]" />
-                  <div className="h-[50%] bg-[#8cc63f]" />
-                  <div className="h-[20%] bg-[#0288d1]" />
+                {/* Right Lateral Bar with Target Ranges & Numerical Values */}
+                <div className="w-8 sm:w-9 h-full relative shrink-0 border-l border-stone-200 dark:border-stone-800 select-none flex flex-col overflow-hidden">
+                  <div className="h-[30%] bg-[#c2185b]" title="Iperglicemia (> 180 mg/dL)" />
+                  <div className="h-[50%] bg-[#8cc63f]" title="Target Normale (70 - 180 mg/dL)" />
+                  <div className="h-[20%] bg-[#0288d1]" title="Ipoglicemia (< 70 mg/dL)" />
+
+                  <span className="absolute top-1 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs">
+                    300
+                  </span>
+                  <span className="absolute top-[30%] -translate-y-1/2 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs bg-black/25 py-0.5">
+                    180
+                  </span>
+                  <span className="absolute top-[80%] -translate-y-1/2 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs bg-black/25 py-0.5">
+                    70
+                  </span>
+                  <span className="absolute bottom-1 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs">
+                    40
+                  </span>
                 </div>
 
               </div>
@@ -875,8 +930,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                 </span>
               </div>
 
-              {/* 8-Hour block values */}
-              <div className="grid grid-cols-8 divide-x divide-stone-200 dark:divide-stone-800 text-center py-2.5 text-xs font-medium text-stone-600 dark:text-stone-400">
+              {/* 8-Hour block visual bars with explicit values */}
+              <div className="grid grid-cols-8 divide-x divide-stone-200 dark:divide-stone-800 text-center py-2 px-1 text-xs font-medium text-stone-600 dark:text-stone-400 items-end">
                 {Array.from({ length: 8 }).map((_, blockIdx) => {
                   const blockStartH = blockIdx * 3;
                   const blockEndH = blockStartH + 3;
@@ -888,11 +943,23 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                     })
                     .reduce((sum, e) => sum + parseVal(e.value), 0);
 
+                  const barHeightPct = carbsInBlock > 0 
+                    ? Math.min(100, Math.max(16, (carbsInBlock / (dayCarbsTotal || 100)) * 100))
+                    : 0;
+
                   return (
-                    <div key={blockIdx} className="p-1">
-                      <span className={carbsInBlock > 0 ? 'font-bold text-amber-700 dark:text-amber-400' : 'text-stone-400 dark:text-stone-600'}>
+                    <div key={blockIdx} className="p-1 flex flex-col items-center justify-end h-16">
+                      <span className={`text-[11px] mb-1 font-bold ${carbsInBlock > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-stone-400 dark:text-stone-600'}`}>
                         {carbsInBlock > 0 ? `${carbsInBlock}g` : '0'}
                       </span>
+                      <div className="w-full bg-stone-100 dark:bg-stone-800/80 rounded-t h-8 flex items-end justify-center overflow-hidden">
+                        {carbsInBlock > 0 && (
+                          <div 
+                            style={{ height: `${barHeightPct}%` }} 
+                            className="w-full bg-amber-500 dark:bg-amber-600 rounded-t transition-all"
+                          />
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -911,8 +978,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                 </span>
               </div>
 
-              {/* 8-Hour block values */}
-              <div className="grid grid-cols-8 divide-x divide-stone-200 dark:divide-stone-800 text-center py-2.5 text-xs font-medium text-stone-600 dark:text-stone-400">
+              {/* 8-Hour block visual bars with explicit values */}
+              <div className="grid grid-cols-8 divide-x divide-stone-200 dark:divide-stone-800 text-center py-2 px-1 text-xs font-medium text-stone-600 dark:text-stone-400 items-end">
                 {Array.from({ length: 8 }).map((_, blockIdx) => {
                   const blockStartH = blockIdx * 3;
                   const blockEndH = blockStartH + 3;
@@ -924,11 +991,23 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                     })
                     .reduce((sum, e) => sum + parseVal(e.duration || e.value), 0);
 
+                  const barHeightPct = exInBlock > 0 
+                    ? Math.min(100, Math.max(16, (exInBlock / (dayExerciseTotal || 60)) * 100))
+                    : 0;
+
                   return (
-                    <div key={blockIdx} className="p-1">
-                      <span className={exInBlock > 0 ? 'font-bold text-emerald-700 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-600'}>
+                    <div key={blockIdx} className="p-1 flex flex-col items-center justify-end h-16">
+                      <span className={`text-[11px] mb-1 font-bold ${exInBlock > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-600'}`}>
                         {exInBlock > 0 ? `${exInBlock}m` : '0'}
                       </span>
+                      <div className="w-full bg-stone-100 dark:bg-stone-800/80 rounded-t h-8 flex items-end justify-center overflow-hidden">
+                        {exInBlock > 0 && (
+                          <div 
+                            style={{ height: `${barHeightPct}%` }} 
+                            className="w-full bg-emerald-500 dark:bg-emerald-600 rounded-t transition-all"
+                          />
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -948,7 +1027,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             <div className="bg-white dark:bg-[#1a1d24] border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xs p-3.5 sm:p-4">
 
               {/* 7 Columns Day Names Header */}
-              <div className="grid grid-cols-7 text-center text-xs font-bold text-stone-700 dark:text-stone-300 pb-2 border-b border-stone-200 dark:border-stone-800 pl-4 pr-4">
+              <div className="grid grid-cols-7 text-center text-xs font-bold text-stone-700 dark:text-stone-300 pb-2 border-b border-stone-200 dark:border-stone-800 ml-8 sm:ml-9 mr-8 sm:mr-9">
                 {weekDays.map((d, i) => (
                   <div key={i} className="flex flex-col items-center">
                     <span className={d.dayName === 'Oggi' ? 'text-teal-600 dark:text-teal-400 font-extrabold' : ''}>
@@ -961,14 +1040,27 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                 ))}
               </div>
 
-              {/* Graph Plot Area with Side Target Bands */}
+              {/* Graph Plot Area with Side Target Bands and Reference Values */}
               <div className="relative h-64 sm:h-72 w-full my-2.5 bg-stone-50/50 dark:bg-stone-900/50 border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden flex">
 
-                {/* Left Side Target Range Stripe */}
-                <div className="w-2.5 h-full flex flex-col shrink-0 border-r border-stone-200 dark:border-stone-800">
-                  <div className="h-[30%] bg-[#c2185b]" />
-                  <div className="h-[50%] bg-[#8cc63f]" />
-                  <div className="h-[20%] bg-[#0288d1]" />
+                {/* Left Lateral Bar with Target Ranges & Numerical Values */}
+                <div className="w-8 sm:w-9 h-full relative shrink-0 border-r border-stone-200 dark:border-stone-800 select-none flex flex-col overflow-hidden">
+                  <div className="h-[30%] bg-[#c2185b]" title="Iperglicemia (> 180 mg/dL)" />
+                  <div className="h-[50%] bg-[#8cc63f]" title="Target Normale (70 - 180 mg/dL)" />
+                  <div className="h-[20%] bg-[#0288d1]" title="Ipoglicemia (< 70 mg/dL)" />
+
+                  <span className="absolute top-1 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs">
+                    300
+                  </span>
+                  <span className="absolute top-[30%] -translate-y-1/2 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs bg-black/25 py-0.5">
+                    180
+                  </span>
+                  <span className="absolute top-[80%] -translate-y-1/2 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs bg-black/25 py-0.5">
+                    70
+                  </span>
+                  <span className="absolute bottom-1 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs">
+                    40
+                  </span>
                 </div>
 
                 {/* Main 7-Day Grid Canvas */}
@@ -984,7 +1076,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                   <div className="absolute top-[30%] left-0 right-0 border-b border-dashed border-stone-300 dark:border-stone-700 pointer-events-none" />
                   <div className="absolute top-[80%] left-0 right-0 border-b border-dashed border-stone-300 dark:border-stone-700 pointer-events-none" />
 
-                  {/* Plotted Data Points across the 7 days */}
+                  {/* Plotted Data Points across the 7 days with visible values */}
                   {weekDays.map((dayItem, dayIdx) => {
                     const colWidth = 100 / 7;
                     const colCenter = dayIdx * colWidth + colWidth / 2;
@@ -997,22 +1089,27 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                       const offsetWithinCol = ((totalMinutes / 1440) - 0.5) * (colWidth * 0.7);
                       const leftPercent = colCenter + offsetWithinCol;
 
-                      // Scale Y: 40 mg/dL (bottom) to 300 mg/dL (top)
-                      const yPercent = Math.min(92, Math.max(8, 100 - ((valNum - 40) / 260) * 100));
+                      // Scale Y precisely aligned with target bands (0-30% red >180, 30-80% green 70-180, 80-100% blue <70)
+                      const yPercent = calcGlucoseYPercent(valNum);
 
                       return (
                         <button
                           key={e.id}
                           onClick={() => setSelectedEntry(e)}
                           style={{ left: `${leftPercent}%`, top: `${yPercent}%` }}
-                          className="absolute -translate-x-1/2 -translate-y-1/2 group z-20 cursor-pointer"
+                          className="absolute -translate-x-1/2 -translate-y-1/2 group z-20 cursor-pointer flex flex-col items-center"
                           title={`${dayItem.dayName} ${e.time} - ${e.value} mg/dL (${e.categoryName})`}
                         >
-                          <div className="w-5 h-5 rounded-full border-[3px] border-[#c2185b] bg-white dark:bg-stone-900 group-hover:scale-125 transition-transform shadow-md flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#c2185b]" />
+                          {/* Value label directly rendered above the dot on the graph */}
+                          <span className="mb-0.5 text-[9px] sm:text-[10px] font-black leading-none text-[#c2185b] dark:text-[#f48fb1] bg-white/95 dark:bg-stone-900/95 px-1 py-0.5 rounded shadow-xs border border-rose-200/80 dark:border-rose-900/60 pointer-events-none whitespace-nowrap">
+                            {e.value}
+                          </span>
+
+                          <div className="w-4 h-4 rounded-full border-[2.5px] border-[#c2185b] bg-white dark:bg-stone-900 group-hover:scale-125 transition-transform shadow-md flex items-center justify-center">
+                            <div className="w-1 h-1 rounded-full bg-[#c2185b]" />
                           </div>
 
-                          <div className="hidden group-hover:block absolute bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 dark:bg-stone-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30">
+                          <div className="hidden group-hover:block absolute bottom-10 left-1/2 -translate-x-1/2 bg-stone-900 dark:bg-stone-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-30">
                             {dayItem.dayName} {e.time}: {e.value} {e.unit}
                           </div>
                         </button>
@@ -1021,62 +1118,99 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                   })}
                 </div>
 
-                {/* Right Side Target Range Stripe */}
-                <div className="w-2.5 h-full flex flex-col shrink-0 border-l border-stone-200 dark:border-stone-800">
-                  <div className="h-[30%] bg-[#c2185b]" />
-                  <div className="h-[50%] bg-[#8cc63f]" />
-                  <div className="h-[20%] bg-[#0288d1]" />
+                {/* Right Lateral Bar with Target Ranges & Numerical Values */}
+                <div className="w-8 sm:w-9 h-full relative shrink-0 border-l border-stone-200 dark:border-stone-800 select-none flex flex-col overflow-hidden">
+                  <div className="h-[30%] bg-[#c2185b]" title="Iperglicemia (> 180 mg/dL)" />
+                  <div className="h-[50%] bg-[#8cc63f]" title="Target Normale (70 - 180 mg/dL)" />
+                  <div className="h-[20%] bg-[#0288d1]" title="Ipoglicemia (< 70 mg/dL)" />
+
+                  <span className="absolute top-1 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs">
+                    300
+                  </span>
+                  <span className="absolute top-[30%] -translate-y-1/2 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs bg-black/25 py-0.5">
+                    180
+                  </span>
+                  <span className="absolute top-[80%] -translate-y-1/2 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs bg-black/25 py-0.5">
+                    70
+                  </span>
+                  <span className="absolute bottom-1 left-0 right-0 text-center text-[9px] sm:text-[10px] font-black text-white leading-none tracking-tighter drop-shadow-xs">
+                    40
+                  </span>
                 </div>
 
               </div>
 
             </div>
 
-            {/* Bottom Summary Table 1: CARBOIDRATI Totali giornalieri */}
+            {/* Bottom Summary Table 1: CARBOIDRATI Totali giornalieri with visual bars */}
             <div className="bg-white dark:bg-[#1a1d24] border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xs overflow-hidden">
               <div className="px-3.5 py-2.5 bg-amber-50/50 dark:bg-amber-950/20 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between text-xs font-bold text-stone-700 dark:text-stone-300">
                 <div className="flex items-center space-x-1.5">
                   <Utensils className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                   <span>CARBOIDRATI</span>
                 </div>
-                <span className="text-stone-500 dark:text-stone-400 font-medium">
-                  Totali giornalieri (grammi)
+                <span className="text-stone-500 dark:text-stone-400 font-medium text-[11px]">
+                  Totali giornalieri (g)
                 </span>
               </div>
 
-              {/* 7 Daily Values matching screenshot */}
-              <div className="grid grid-cols-7 divide-x divide-stone-200 dark:divide-stone-800 text-center py-2.5 text-xs font-medium text-stone-600 dark:text-stone-400">
-                {weekDays.map((d, i) => (
-                  <div key={i} className="p-1">
-                    <span className={d.carbsTotal > 0 ? 'font-bold text-amber-700 dark:text-amber-400' : 'text-stone-400 dark:text-stone-600'}>
-                      {d.carbsTotal > 0 ? d.carbsTotal : '0'}
-                    </span>
-                  </div>
-                ))}
+              {/* 7 Daily Visual Bars with explicit values */}
+              <div className="grid grid-cols-7 divide-x divide-stone-200 dark:divide-stone-800 text-center py-2 px-1 text-xs font-medium text-stone-600 dark:text-stone-400 items-end">
+                {weekDays.map((d, i) => {
+                  const maxCarbWeek = Math.max(...weekDays.map(w => w.carbsTotal), 1);
+                  const barHeightPct = d.carbsTotal > 0 ? Math.min(100, Math.max(16, (d.carbsTotal / maxCarbWeek) * 100)) : 0;
+                  return (
+                    <div key={i} className="p-1 flex flex-col items-center justify-end h-18">
+                      <span className={`text-[11px] mb-1 font-bold ${d.carbsTotal > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-stone-400 dark:text-stone-600'}`}>
+                        {d.carbsTotal > 0 ? `${d.carbsTotal}g` : '0'}
+                      </span>
+                      <div className="w-full bg-stone-100 dark:bg-stone-800/80 rounded-t h-10 flex items-end justify-center overflow-hidden">
+                        {d.carbsTotal > 0 && (
+                          <div 
+                            style={{ height: `${barHeightPct}%` }} 
+                            className="w-full bg-amber-500 dark:bg-amber-600 rounded-t transition-all"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Bottom Summary Table 2: ATTIVITÀ FISICA Totali giornalieri */}
+            {/* Bottom Summary Table 2: ATTIVITÀ FISICA Totali giornalieri with visual bars */}
             <div className="bg-white dark:bg-[#1a1d24] border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xs overflow-hidden">
               <div className="px-3.5 py-2.5 bg-emerald-50/50 dark:bg-emerald-950/20 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between text-xs font-bold text-stone-700 dark:text-stone-300">
                 <div className="flex items-center space-x-1.5">
                   <Activity className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>ATTIVITÀ FISICA</span>
                 </div>
-                <span className="text-stone-500 dark:text-stone-400 font-medium">
-                  Totali giornalieri (minuti)
+                <span className="text-stone-500 dark:text-stone-400 font-medium text-[11px]">
+                  Totali giornalieri (min)
                 </span>
               </div>
 
-              {/* 7 Daily Values matching screenshot */}
-              <div className="grid grid-cols-7 divide-x divide-stone-200 dark:divide-stone-800 text-center py-2.5 text-xs font-medium text-stone-600 dark:text-stone-400">
-                {weekDays.map((d, i) => (
-                  <div key={i} className="p-1">
-                    <span className={d.exerciseTotal > 0 ? 'font-bold text-emerald-700 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-600'}>
-                      {d.exerciseTotal > 0 ? d.exerciseTotal : '0'}
-                    </span>
-                  </div>
-                ))}
+              {/* 7 Daily Visual Bars with explicit values */}
+              <div className="grid grid-cols-7 divide-x divide-stone-200 dark:divide-stone-800 text-center py-2 px-1 text-xs font-medium text-stone-600 dark:text-stone-400 items-end">
+                {weekDays.map((d, i) => {
+                  const maxExWeek = Math.max(...weekDays.map(w => w.exerciseTotal), 1);
+                  const barHeightPct = d.exerciseTotal > 0 ? Math.min(100, Math.max(16, (d.exerciseTotal / maxExWeek) * 100)) : 0;
+                  return (
+                    <div key={i} className="p-1 flex flex-col items-center justify-end h-18">
+                      <span className={`text-[11px] mb-1 font-bold ${d.exerciseTotal > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-600'}`}>
+                        {d.exerciseTotal > 0 ? `${d.exerciseTotal}m` : '0'}
+                      </span>
+                      <div className="w-full bg-stone-100 dark:bg-stone-800/80 rounded-t h-10 flex items-end justify-center overflow-hidden">
+                        {d.exerciseTotal > 0 && (
+                          <div 
+                            style={{ height: `${barHeightPct}%` }} 
+                            className="w-full bg-emerald-500 dark:bg-emerald-600 rounded-t transition-all"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -1417,7 +1551,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-stone-50 dark:bg-stone-900/60 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800">
                   <span className="text-stone-400 block font-medium">Data & Ora</span>
-                  <span className="font-bold text-stone-800 dark:text-stone-200">{selectedEntry.date} • {selectedEntry.time}</span>
+                  <span className="font-bold text-stone-800 dark:text-stone-200">{selectedEntry.date} • {formatTime24h(selectedEntry.time)}</span>
                 </div>
                 <div className="bg-stone-50 dark:bg-stone-900/60 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800">
                   <span className="text-stone-400 block font-medium">Categoria</span>
@@ -1635,7 +1769,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
           <div className="text-right text-xs space-y-0.5">
             <p><span className="text-stone-500">Utente:</span> <strong className="text-stone-900 font-bold">{patientName}</strong></p>
             <p><span className="text-stone-500">Periodo:</span> <strong className="text-[#3b677a]">{classicPeriodRangeLabel}</strong></p>
-            <p><span className="text-stone-500">Data emissione:</span> {new Date().toLocaleDateString('it-IT')} {new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</p>
+            <p><span className="text-stone-500">Data emissione:</span> {new Date().toLocaleDateString('it-IT')} {new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', hour12: false })}</p>
           </div>
         </div>
 

@@ -285,78 +285,46 @@ Rispondi SEMPRE ed esclusivamente con un oggetto JSON valido strutturato così:
       return res.status(400).json({ success: false, error: "Password mancante." });
     }
 
-    const { folderUrl, legacyFolderUrl, cleanUser, cleanFolder, cleanBase } = getNextcloudUrls(serverUrl, username, folder);
+    const { folderUrl, cleanUser, cleanFolder, cleanBase } = getNextcloudUrls(serverUrl, username, folder);
     const authHeader = getBasicAuthHeader(cleanUser, password);
 
     try {
-      let xmlText = "";
-      let listRes: Response | null = null;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const listRes = await fetch(folderUrl, {
+        method: "PROPFIND",
+        headers: {
+          Authorization: authHeader,
+          Depth: "1",
+          "Content-Type": "application/xml; charset=utf-8",
+          "OCS-APIRequest": "true",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+          "User-Agent": "FireTrack/1.0 (Health Tracking App)"
+        },
+        signal: controller.signal
+      });
 
-        listRes = await fetch(folderUrl, {
-          method: "PROPFIND",
-          headers: {
-            Authorization: authHeader,
-            Depth: "1",
-            "Content-Type": "application/xml; charset=utf-8",
-            "OCS-APIRequest": "true",
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-            "User-Agent": "FireTrack/1.0 (Health Tracking App)"
-          },
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-      } catch (err) {
-        console.warn("[Nextcloud List] Modern DAV failed, trying legacy:", err);
-      }
+      clearTimeout(timeoutId);
 
-      if (!listRes || (!listRes.ok && listRes.status !== 207)) {
-        try {
-          const controller2 = new AbortController();
-          const timeoutId2 = setTimeout(() => controller2.abort(), 12000);
-
-          const legacyListRes = await fetch(legacyFolderUrl, {
-            method: "PROPFIND",
-            headers: {
-              Authorization: authHeader,
-              Depth: "1",
-              "Content-Type": "application/xml; charset=utf-8",
-              "OCS-APIRequest": "true",
-              "Cache-Control": "no-cache",
-              Pragma: "no-cache",
-              "User-Agent": "FireTrack/1.0 (Health Tracking App)"
-            },
-            signal: controller2.signal
-          });
-          clearTimeout(timeoutId2);
-          if (legacyListRes.ok || legacyListRes.status === 207) {
-            listRes = legacyListRes;
-          }
-        } catch (err) {
-          console.warn("[Nextcloud List] Legacy DAV failed:", err);
-        }
-      }
-
-      if (listRes && (listRes.status === 401 || listRes.status === 403)) {
+      if (listRes.status === 401 || listRes.status === 403) {
         return res.status(401).json({ success: false, error: "Credenziali non valide su Nextcloud." });
       }
 
-      if (listRes && listRes.status === 404) {
+      // If the folder doesn't exist on Nextcloud (404), return empty array
+      if (listRes.status === 404) {
         return res.json({ success: true, files: [], count: 0 });
       }
 
-      if (!listRes || (!listRes.ok && listRes.status !== 207)) {
-        return res.status(listRes?.status || 500).json({
+      if (!listRes.ok && listRes.status !== 207) {
+        return res.status(listRes.status).json({
           success: false,
-          error: `Errore Nextcloud WebDAV ${listRes?.status ? 'HTTP ' + listRes.status : 'Non raggiungibile'}`
+          error: `Errore Nextcloud WebDAV HTTP ${listRes.status} (${listRes.statusText})`
         });
       }
 
-      xmlText = await listRes.text();
+      const xmlText = await listRes.text();
       
       // Parse DAV responses from XML
       const files: Array<{
@@ -532,12 +500,12 @@ Rispondi SEMPRE ed esclusivamente con un oggetto JSON valido strutturato così:
       return res.status(400).json({ success: false, error: "Password e nome file richiesti." });
     }
 
-    const { folderUrl, cleanFolder, cleanBase, cleanUser } = getNextcloudUrls(serverUrl, username, folder);
+    const { folderUrl, cleanUser } = getNextcloudUrls(serverUrl, username, folder);
     const authHeader = getBasicAuthHeader(cleanUser, password);
     const targetFileUrl = `${folderUrl.replace(/\/+$/, "")}/${encodeURIComponent(filename)}`;
 
     try {
-      let downloadRes = await fetch(targetFileUrl, {
+      const downloadRes = await fetch(targetFileUrl, {
         method: "GET",
         headers: {
           Authorization: authHeader,
@@ -545,25 +513,6 @@ Rispondi SEMPRE ed esclusivamente con un oggetto JSON valido strutturato così:
           "User-Agent": "FireTrack/1.0 (Health Tracking App)"
         }
       });
-
-      if (!downloadRes.ok && downloadRes.status !== 200) {
-        const legacyTargetUrl = cleanFolder
-          ? `${cleanBase}/remote.php/webdav/${encodeURIComponent(cleanFolder)}/${encodeURIComponent(filename)}`
-          : `${cleanBase}/remote.php/webdav/${encodeURIComponent(filename)}`;
-        try {
-          const legacyRes = await fetch(legacyTargetUrl, {
-            method: "GET",
-            headers: {
-              Authorization: authHeader,
-              "OCS-APIRequest": "true",
-              "User-Agent": "FireTrack/1.0 (Health Tracking App)"
-            }
-          });
-          if (legacyRes.ok) {
-            downloadRes = legacyRes;
-          }
-        } catch {}
-      }
 
       if (downloadRes.status === 401 || downloadRes.status === 403) {
         return res.status(401).json({ success: false, error: "Credenziali non valide." });
@@ -615,12 +564,12 @@ Rispondi SEMPRE ed esclusivamente con un oggetto JSON valido strutturato così:
       return res.status(400).json({ success: false, error: "Password e nome file richiesti." });
     }
 
-    const { folderUrl, cleanFolder, cleanBase, cleanUser } = getNextcloudUrls(serverUrl, username, folder);
+    const { folderUrl, cleanUser } = getNextcloudUrls(serverUrl, username, folder);
     const authHeader = getBasicAuthHeader(cleanUser, password);
     const targetFileUrl = `${folderUrl.replace(/\/+$/, "")}/${encodeURIComponent(filename)}`;
 
     try {
-      let deleteRes = await fetch(targetFileUrl, {
+      const deleteRes = await fetch(targetFileUrl, {
         method: "DELETE",
         headers: {
           Authorization: authHeader,
@@ -628,25 +577,6 @@ Rispondi SEMPRE ed esclusivamente con un oggetto JSON valido strutturato così:
           "User-Agent": "FireTrack/1.0 (Health Tracking App)"
         }
       });
-
-      if (!deleteRes.ok && deleteRes.status !== 204 && deleteRes.status !== 404) {
-        const legacyTargetUrl = cleanFolder
-          ? `${cleanBase}/remote.php/webdav/${encodeURIComponent(cleanFolder)}/${encodeURIComponent(filename)}`
-          : `${cleanBase}/remote.php/webdav/${encodeURIComponent(filename)}`;
-        try {
-          const legacyRes = await fetch(legacyTargetUrl, {
-            method: "DELETE",
-            headers: {
-              Authorization: authHeader,
-              "OCS-APIRequest": "true",
-              "User-Agent": "FireTrack/1.0 (Health Tracking App)"
-            }
-          });
-          if (legacyRes.ok || legacyRes.status === 204) {
-            deleteRes = legacyRes;
-          }
-        } catch {}
-      }
 
       if (!deleteRes.ok && deleteRes.status !== 204 && deleteRes.status !== 404) {
         return res.status(deleteRes.status).json({
@@ -686,7 +616,7 @@ Rispondi SEMPRE ed esclusivamente con un oggetto JSON valido strutturato così:
     const staticDir = fs.existsSync(path.join(distPath, "index.html")) ? distPath : rootPath;
 
     app.use(express.static(staticDir));
-    app.use((_req, res) => {
+    app.get("*", (_req, res) => {
       const targetHtml = path.join(staticDir, "index.html");
       if (fs.existsSync(targetHtml)) {
         res.sendFile(targetHtml);

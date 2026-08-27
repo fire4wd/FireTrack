@@ -129,10 +129,7 @@ export const NextcloudSyncSection: React.FC<NextcloudSyncSectionProps> = ({
       );
       const res = await uploadJsonBackupToNextcloud(config, password, jsonBackupStr);
       if (res.success) {
-        const parts = [`${entries.length} misurazioni`];
-        if (bloodTestRecords && bloodTestRecords.length > 0) parts.push(`${bloodTestRecords.length} esami`);
-        if (categories.length > 0) parts.push(`${categories.length} categorie`);
-        const msg = `✅ Backup salvato su Nextcloud! (${parts.join(', ')})`;
+        const msg = `✅ Backup (${entries.length} letture) salvato su Nextcloud!`;
         showToast(msg);
       } else {
         showToast(`❌ ${res.error || 'Caricamento non riuscito'}`);
@@ -414,7 +411,7 @@ export const NextcloudSyncSection: React.FC<NextcloudSyncSectionProps> = ({
               <div>🏷️ <strong>Categorie personalizzate:</strong> {pendingRemoteData.categories?.length || 0}</div>
               {pendingRemoteData.exportDate && (
                 <div className="text-[11px] text-stone-400 pt-1">
-                  Data esportazione: {new Date(pendingRemoteData.exportDate).toLocaleString()}
+                  Data esportazione: {new Date(pendingRemoteData.exportDate).toLocaleString('it-IT', { hour12: false })}
                 </div>
               )}
             </div>

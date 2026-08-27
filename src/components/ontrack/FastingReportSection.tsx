@@ -40,11 +40,14 @@ import {
   saveSavedFastings,
   addSavedFastingRecord
 } from '../../utils/ontrackStorage';
-import { 
+import {
   findNearbyGlucoseForFasting,
   getLocalDateString,
   getLocalTimeString,
-  FASTING_PLANS
+  getLocalDateAndTimeString,
+  format24hTime,
+  FASTING_PLANS,
+  parsePlanTargetHours
 } from '../../utils/fastingHelpers';
 
 export interface FastingReportEntry {
@@ -276,27 +279,16 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
   const [showAllLevels, setShowAllLevels] = useState<boolean>(false);
   const [showActiveEditor, setShowActiveEditor] = useState<boolean>(false);
   const [showFinishModal, setShowFinishModal] = useState<boolean>(false);
-  const [finishStartDate, setFinishStartDate] = useState<string>(() => {
-    if (activeFasting?.startTime) return getLocalDateString(activeFasting.startTime);
-    return getLocalDateString(new Date());
-  });
-  const [finishStartTime, setFinishStartTime] = useState<string>(() => {
-    if (activeFasting?.startTime) return getLocalTimeString(activeFasting.startTime);
-    return '20:00';
-  });
-  const [finishStartGlucose, setFinishStartGlucose] = useState<string>(() => {
-    return activeFasting?.startingGlucose ? String(activeFasting.startingGlucose) : '';
-  });
-  const [finishDate, setFinishDate] = useState<string>(() => getLocalDateString(new Date()));
-  const [finishTime, setFinishTime] = useState<string>(() => getLocalTimeString(new Date()));
-  const [finishGlucose, setFinishGlucose] = useState<string>('');
-  const [finishNote, setFinishNote] = useState<string>('Digiuno completato regolarmente.');
+  const [finishDate, setFinishDate] = useState<string>(() => getLocalDateString());
+  const [finishTime, setFinishTime] = useState<string>(() => getLocalTimeString());
+  const [finishGlucose, setFinishGlucose] = useState<string>('84');
+  const [finishNote, setFinishNote] = useState<string>('Digiuno completato regolarmente. Ottima lucidità mentale e senso di benessere.');
   const [nowTimestamp, setNowTimestamp] = useState<number>(Date.now());
 
   // Edit / Add Fasting form state (with separate date and time pickers)
   const [editStartDate, setEditStartDate] = useState<string>(() => {
     if (activeFasting?.startTime) return getLocalDateString(activeFasting.startTime);
-    return getLocalDateString(new Date());
+    return getLocalDateString();
   });
   const [editStartTime, setEditStartTime] = useState<string>(() => {
     if (activeFasting?.startTime) return getLocalTimeString(activeFasting.startTime);
@@ -331,14 +323,13 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
     }
   }, [activeFasting]);
 
-  // Dynamic calculations for Finish Modal based on selected finishStartDate, finishStartTime, finishDate and finishTime
+  // Dynamic calculations for Finish Modal based on selected finishDate and finishTime
   const finishCalculations = useMemo(() => {
     if (!activeFasting || !activeFasting.startTime) return null;
-    const startStr = `${finishStartDate || getLocalDateString(new Date())}T${finishStartTime || '20:00'}:00`;
-    const startMs = new Date(startStr).getTime();
+    const startMs = new Date(activeFasting.startTime).getTime();
     if (isNaN(startMs)) return null;
 
-    const fDate = finishDate || getLocalDateString(new Date());
+    const fDate = finishDate || getLocalDateString();
     const fTime = finishTime || '12:00';
     const endStr = `${fDate}T${fTime}:00`;
     const endMs = new Date(endStr).getTime();
@@ -361,7 +352,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
       isTargetMet,
       currentLevel
     };
-  }, [activeFasting, finishStartDate, finishStartTime, finishDate, finishTime]);
+  }, [activeFasting, finishDate, finishTime]);
 
   // Dynamic calculations for Editor Modal
   const editorCalculations = useMemo(() => {
@@ -446,20 +437,22 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
       lvl => elapsedHours >= lvl.minHours && elapsedHours < lvl.maxHours
     ) || FASTING_METABOLIC_LEVELS[FASTING_METABOLIC_LEVELS.length - 1];
 
-    // Format Start Time readable
+    // Format Start Time readable in 24h format strictly
     const startDate = new Date(startMs);
     const startFormatted = startDate.toLocaleDateString('it-IT', {
       day: '2-digit',
       month: 'short',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: false
     });
 
     const targetFormatted = targetEndDate.toLocaleDateString('it-IT', {
       day: '2-digit',
       month: 'short',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: false
     });
 
     // Level progress percentage within its own range
@@ -537,12 +530,12 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
     // Default rich sample fasting sessions matching 7 days of fasting (14:10, 16:8, 18:6 e 20:4 al Mercoledì) + extended timeline
     const core7Days = [
       { date: '2026-08-15', start: '20:30', end: '13:00', dur: 16.5, proto: '16:8', target: 16, note: 'Rottura digiuno con insalata di pollo e noci. Ottima energia!', gluStart: 128, gluEnd: 84 },
-      { date: '2026-08-14', start: '20:00', end: '10:30', dur: 14.5, proto: '14:10', target: 14, note: 'Protocollo 14:10 (Normale) completato con regolarità e facilità.', gluStart: 132, gluEnd: 88 },
-      { date: '2026-08-13', start: '20:00', end: '14:30', dur: 18.5, proto: '18:6', target: 18, note: 'Protocollo 18:6 completato. Glicemia serale pre-digiuno stabile.', gluStart: 138, gluEnd: 82 },
+      { date: '2026-08-14', start: '20:00', end: '10:30', dur: 14.5, proto: '14:10', target: 14, note: 'Split 14:10 (Normale) completato con regolarità e facilità.', gluStart: 132, gluEnd: 88 },
+      { date: '2026-08-13', start: '20:00', end: '14:30', dur: 18.5, proto: '18:6', target: 18, note: 'Split 18:6 completato. Glicemia serale pre-digiuno stabile.', gluStart: 138, gluEnd: 82 },
       { date: '2026-08-12', start: '19:30', end: '16:00', dur: 20.5, proto: '20:4', target: 20, note: 'Mercoledì: Digiuno prolungato 20:4 (Guerriero), chetosi avanzata e massima lucidità.', gluStart: 140, gluEnd: 78 },
       { date: '2026-08-11', start: '20:00', end: '12:00', dur: 16.0, proto: '16:8', target: 16, note: 'Pranzo leggero con verdure grigliate e uova sode.', gluStart: 125, gluEnd: 86 },
-      { date: '2026-08-10', start: '20:30', end: '10:30', dur: 14.0, proto: '14:10', target: 14, note: 'Inizio settimana con protocollo 14:10 (Normale), idratazione costante.', gluStart: 134, gluEnd: 89 },
-      { date: '2026-08-09', start: '19:45', end: '13:45', dur: 18.0, proto: '18:6', target: 18, note: 'Domenica: Protocollo 18:6 completato con ottimo recupero metabolico.', gluStart: 139, gluEnd: 81 }
+      { date: '2026-08-10', start: '20:30', end: '10:30', dur: 14.0, proto: '14:10', target: 14, note: 'Inizio settimana con split 14:10 (Normale), idratazione costante.', gluStart: 134, gluEnd: 89 },
+      { date: '2026-08-09', start: '19:45', end: '13:45', dur: 18.0, proto: '18:6', target: 18, note: 'Domenica: Split 18:6 completato con ottimo recupero metabolico.', gluStart: 139, gluEnd: 81 }
     ];
 
     const result: FastingReportEntry[] = [];
@@ -574,11 +567,11 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
     // Extended history for 14, 30, 60, 90 days and full year filters
     const historyPatterns = [
       { proto: '16:8', dur: 16.5, target: 16, start: '20:00', end: '12:30', gluStart: 130, gluEnd: 85, note: 'Sessione regolare 16:8.' },
-      { proto: '14:10', dur: 14.0, target: 14, start: '20:30', end: '10:30', gluStart: 135, gluEnd: 90, note: 'Protocollo 14:10 (Normale).' },
-      { proto: '18:6', dur: 18.0, target: 18, start: '20:00', end: '14:00', gluStart: 138, gluEnd: 80, note: 'Protocollo 18:6 con chetosi.' },
+      { proto: '14:10', dur: 14.0, target: 14, start: '20:30', end: '10:30', gluStart: 135, gluEnd: 90, note: 'Split 14:10 (Normale).' },
+      { proto: '18:6', dur: 18.0, target: 18, start: '20:00', end: '14:00', gluStart: 138, gluEnd: 80, note: 'Split 18:6 con chetosi.' },
       { proto: '20:4', dur: 20.0, target: 20, start: '19:30', end: '15:30', gluStart: 142, gluEnd: 77, note: 'Digiuno 20:4 del guerriero.' },
       { proto: '16:8', dur: 16.0, target: 16, start: '20:00', end: '12:00', gluStart: 128, gluEnd: 86, note: 'Ottima digestione e sonno riposante.' },
-      { proto: '14:10', dur: 14.5, target: 14, start: '20:00', end: '10:30', gluStart: 133, gluEnd: 88, note: 'Protocollo 14:10 (Normale).' },
+      { proto: '14:10', dur: 14.5, target: 14, start: '20:00', end: '10:30', gluStart: 133, gluEnd: 88, note: 'Split 14:10 (Normale).' },
       { proto: '18:6', dur: 18.5, target: 18, start: '19:45', end: '14:15', gluStart: 136, gluEnd: 79, note: '18 ore con camminata mattutina.' }
     ];
 
@@ -856,59 +849,10 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
     const now = new Date();
     const dStr = getLocalDateString(now);
     const tStr = getLocalTimeString(now);
-    
-    // Start date and time
-    let sDate = dStr;
-    let sTime = '20:00';
-    if (activeFasting && activeFasting.startTime) {
-      sDate = getLocalDateString(activeFasting.startTime);
-      sTime = getLocalTimeString(activeFasting.startTime);
-    }
-    setFinishStartDate(sDate);
-    setFinishStartTime(sTime);
-
-    // Initial glucose for start time (from active session or nearby lookup)
-    const nearbyStart = findNearbyGlucoseForFasting(allEntries && allEntries.length > 0 ? allEntries : entries, sDate, sTime, 3);
-    const initStartGlu = activeFasting.startingGlucose !== undefined 
-      ? String(activeFasting.startingGlucose) 
-      : (nearbyStart ? String(nearbyStart.value) : '');
-    setFinishStartGlucose(initStartGlu);
-
-    // End date and time
     setFinishDate(dStr);
     setFinishTime(tStr);
-
-    // Automatic lookup for end glucose with the same logic as Add Entry (find within ±3h)
-    const nearbyEnd = findNearbyGlucoseForFasting(allEntries && allEntries.length > 0 ? allEntries : entries, dStr, tStr, 3);
-    setFinishGlucose(nearbyEnd ? String(nearbyEnd.value) : '');
-    setFinishNote(activeFasting.note || 'Sessione di digiuno completata regolarmente.');
+    setFinishGlucose('84');
     setShowFinishModal(true);
-  };
-
-  const handleFinishStartDateOrTimeChange = (newStartDate?: string, newStartTime?: string) => {
-    const sDate = newStartDate !== undefined ? newStartDate : finishStartDate;
-    const sTime = newStartTime !== undefined ? newStartTime : finishStartTime;
-    if (newStartDate !== undefined) setFinishStartDate(newStartDate);
-    if (newStartTime !== undefined) setFinishStartTime(newStartTime);
-
-    // Check nearby glucose for start time if not manually set
-    const nearby = findNearbyGlucoseForFasting(allEntries && allEntries.length > 0 ? allEntries : entries, sDate, sTime, 3);
-    if (!finishStartGlucose || finishStartGlucose === '') {
-      if (nearby) setFinishStartGlucose(String(nearby.value));
-    }
-  };
-
-  const handleFinishEndDateOrTimeChange = (newEndDate?: string, newEndTime?: string) => {
-    const eDate = newEndDate !== undefined ? newEndDate : finishDate;
-    const eTime = newEndTime !== undefined ? newEndTime : finishTime;
-    if (newEndDate !== undefined) setFinishDate(newEndDate);
-    if (newEndTime !== undefined) setFinishTime(newEndTime);
-
-    // Automatically lookup nearby glucose on date/time change (±3h)
-    const nearby = findNearbyGlucoseForFasting(allEntries && allEntries.length > 0 ? allEntries : entries, eDate, eTime, 3);
-    if (nearby) {
-      setFinishGlucose(String(nearby.value));
-    }
   };
 
   const openEditorForNew = () => {
@@ -956,13 +900,14 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
 
   const handleSaveActiveFasting = (e: React.FormEvent) => {
     e.preventDefault();
-    const startStr = `${editStartDate || getLocalDateString(new Date())}T${editStartTime || '20:00'}:00`;
+    const startStr = `${editStartDate || getLocalDateString()}T${editStartTime || '20:00'}:00`;
+    const startIso = new Date(startStr).toISOString();
 
     if (editIsInProgress || !editEndDate || !editEndTime) {
       // In progress fasting session
       const updated: ActiveFastingSession = {
         isActive: true,
-        startTime: startStr,
+        startTime: startIso,
         protocol: editProtocol,
         targetHours: editTargetHours,
         startingGlucose: editStartingGlucose ? parseFloat(editStartingGlucose) : undefined,
@@ -1009,12 +954,13 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
 
   const handleStartNewFast = () => {
     const now = new Date();
+    const nowIso = now.toISOString();
     const dStr = getLocalDateString(now);
     const tStr = getLocalTimeString(now);
     const nearby = findNearbyGlucoseForFasting(allEntries && allEntries.length > 0 ? allEntries : entries, dStr, tStr, 3);
     const newFast: ActiveFastingSession = {
       isActive: true,
-      startTime: `${dStr}T${tStr}:00`,
+      startTime: nowIso,
       protocol: '16:8',
       targetHours: 16,
       startingGlucose: nearby ? nearby.value : undefined,
@@ -1032,24 +978,24 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
   };
 
   const handleCompleteActiveFast = () => {
-    const sDate = finishStartDate || (activeFasting.startTime ? getLocalDateString(activeFasting.startTime) : getLocalDateString(new Date()));
-    const sTime = finishStartTime || (activeFasting.startTime ? getLocalTimeString(activeFasting.startTime) : '20:00');
-    const startStr = `${sDate}T${sTime}:00`;
-    const endStr = `${finishDate || getLocalDateString(new Date())}T${finishTime || '12:00'}:00`;
-    const startMs = new Date(startStr).getTime();
+    const startIso = activeFasting.startTime || new Date().toISOString();
+    const startDate = getLocalDateString(startIso);
+    const startTime = getLocalTimeString(startIso);
+    const endStr = `${finishDate || getLocalDateString()}T${finishTime || '12:00'}:00`;
+    const startMs = new Date(startIso).getTime();
     const endMs = new Date(endStr).getTime();
     const durHours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60));
 
     const completedRecord: SavedFastingRecord = {
       id: `fast_rec_${Date.now()}`,
-      startDate: sDate,
-      startTime: sTime,
+      startDate: startDate,
+      startTime: startTime,
       endDate: finishDate,
       endTime: finishTime,
       protocol: activeFasting.protocol || '16:8',
       targetHours: activeFasting.targetHours || 16,
       durationHours: durHours,
-      startingGlucose: finishStartGlucose ? parseFloat(finishStartGlucose) : activeFasting.startingGlucose,
+      startingGlucose: activeFasting.startingGlucose,
       endingGlucose: finishGlucose ? parseFloat(finishGlucose) : undefined,
       note: finishNote || 'Sessione di digiuno completata regolarmente.',
       isCompleted: true
@@ -1103,7 +1049,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                     : 'text-stone-300 hover:text-white hover:bg-white/10'
                 }`}
               >
-                {proto === 'ALL' ? 'Tutti i Protocolli' : proto}
+                {proto === 'ALL' ? 'Tutti i Piani' : proto}
               </button>
             ))}
           </div>
@@ -1133,7 +1079,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                     Digiuno in Corso
                   </span>
                   <span className="text-xs text-stone-300 font-mono">
-                    Piano: <strong className="text-teal-300">{activeFasting.protocol}</strong> ({activeFastingData.targetHours}h)
+                    Split: <strong className="text-teal-300">{activeFasting.protocol}</strong> ({activeFastingData.targetHours}h)
                   </span>
                 </div>
                 <div className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight mt-1 flex items-baseline space-x-2">
@@ -1171,7 +1117,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
             </div>
           </div>
 
-          {/* 4 Meta Badges Grid: Ora Inizio, Piano, Ora Prevista Fine, Livello Biologico Attuale */}
+          {/* 4 Meta Badges Grid: Ora Inizio, Split, Ora Prevista Fine, Livello Biologico Attuale */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 relative z-10">
 
             {/* 1. Ora Inizio */}
@@ -1188,11 +1134,11 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
               </div>
             </div>
 
-            {/* 2. Piano */}
+            {/* 2. Split */}
             <div className="bg-black/30 border border-white/10 rounded-xl p-3.5 space-y-1">
               <div className="text-[11px] font-bold text-stone-400 flex items-center space-x-1.5">
                 <Layers className="w-3.5 h-3.5 text-teal-400" />
-                <span>Piano</span>
+                <span>Split</span>
               </div>
               <div className="text-base font-bold text-teal-300 font-mono">
                 {activeFasting.protocol} ({activeFastingData.targetHours} ore)
@@ -1448,7 +1394,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
           </div>
         </div>
 
-        {/* CARD 3: Piano Preferito dell'Utente */}
+        {/* CARD 3: Piano Preferito del Utente */}
         <div className="bg-white dark:bg-[#1a1d24] border border-stone-200 dark:border-stone-800 rounded-2xl p-4 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-stone-500 dark:text-stone-400 text-xs font-bold">
             <span>Piano Preferito</span>
@@ -1706,7 +1652,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
           <div className="flex items-center space-x-2">
             <Layers className="w-4 h-4 text-teal-600 dark:text-teal-400" />
             <h4 className="font-bold text-stone-900 dark:text-stone-100 text-sm">
-              Distribuzione Piani
+              Distribuzione Piani di Digiuno
             </h4>
           </div>
 
@@ -1746,7 +1692,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
 
           <div className="p-3 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200 dark:border-stone-700 text-xs">
             <span className="font-bold text-stone-800 dark:text-stone-200 block mb-0.5">
-              Piano preferito dell'Utente:
+              Piano preferito dell'utente:
             </span>
             <span className="text-teal-600 dark:text-teal-400 font-bold">{topProtocolEntry.name}</span> ({topProtocolEntry.pct}% di frequenza) con regolarità serale.
           </div>
@@ -1763,7 +1709,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
               <span>Registro Dettagliato Sessioni di Digiuno</span>
             </h3>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              Cronologia completa con orari inizio/fine, durata, piano, glicemia e note.
+              Cronologia completa con orari inizio/fine, durata, split, glicemia e note.
             </p>
           </div>
 
@@ -1796,7 +1742,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                 <th className="p-3 text-center">Inizio</th>
                 <th className="p-3 text-center">Fine (Rottura)</th>
                 <th className="p-3 text-center">Durata Effettiva</th>
-                <th className="p-3 text-center">Piano</th>
+                <th className="p-3 text-center">Split</th>
                 <th className="p-3 text-center">Stadio Raggiunto</th>
                 <th className="p-3 text-center">Glicemia Inizio/Fine</th>
                 <th className="p-3">Note / Pasto di Rottura</th>
@@ -1923,8 +1869,8 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                 onClick={() => {
                   setEditIsInProgress(false);
                   const now = new Date();
-                  setEditEndDate(getLocalDateString(now));
-                  setEditEndTime(getLocalTimeString(now));
+                  setEditEndDate(now.toISOString().slice(0, 10));
+                  setEditEndTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
                 }}
                 className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
                   !editIsInProgress
@@ -1951,8 +1897,8 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                       type="button"
                       onClick={() => {
                         const now = new Date();
-                        setEditStartDate(getLocalDateString(now));
-                        setEditStartTime(getLocalTimeString(now));
+                        setEditStartDate(now.toISOString().slice(0, 10));
+                        setEditStartTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
                       }}
                       className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline px-2 py-0.5 bg-teal-50 dark:bg-teal-950/40 rounded-md border border-teal-200 dark:border-teal-800 cursor-pointer"
                     >
@@ -1962,7 +1908,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                       type="button"
                       onClick={() => {
                         const yest = new Date(Date.now() - 86400000);
-                        setEditStartDate(getLocalDateString(yest));
+                        setEditStartDate(yest.toISOString().slice(0, 10));
                         setEditStartTime('20:00');
                       }}
                       className="text-[10px] font-bold text-stone-600 dark:text-stone-300 hover:underline px-2 py-0.5 bg-stone-200 dark:bg-stone-800 rounded-md cursor-pointer"
@@ -2008,17 +1954,9 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                   Piano & Durata Target
                 </label>
 
-                {/* Piano Quick Pills */}
+                {/* Plan Quick Pills */}
                 <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: '14:10', label: '14:10', hours: 14 },
-                    { id: '16:8', label: '16:8', hours: 16 },
-                    { id: '18:6', label: '18:6', hours: 18 },
-                    { id: '20:4', label: '20:4', hours: 20 },
-                    { id: 'OMAD (23:1)', label: 'OMAD (23:1)', hours: 23 },
-                    { id: '24h', label: '24h', hours: 24 },
-                    { id: '36h', label: '36h', hours: 36 }
-                  ].map((p) => (
+                  {FASTING_PLANS.slice(0, 7).map((p) => (
                     <button
                       key={p.id}
                       type="button"
@@ -2040,22 +1978,14 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400 mb-1">
-                      Seleziona Piano
+                      Seleziona Piano / Split
                     </label>
                     <select
                       value={editProtocol}
                       onChange={(e) => {
                         const proto = e.target.value;
                         setEditProtocol(proto);
-                        if (proto === '14:10') setEditTargetHours(14);
-                        else if (proto === '16:8') setEditTargetHours(16);
-                        else if (proto === '18:6') setEditTargetHours(18);
-                        else if (proto === '20:4') setEditTargetHours(20);
-                        else if (proto === 'OMAD (23:1)') setEditTargetHours(23);
-                        else if (proto === '24h') setEditTargetHours(24);
-                        else if (proto === '36h') setEditTargetHours(36);
-                        else if (proto === '48h') setEditTargetHours(48);
-                        else if (proto === '72h') setEditTargetHours(72);
+                        setEditTargetHours(parsePlanTargetHours(proto));
                       }}
                       onFocus={(e) => e.target.select()}
                       className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -2156,7 +2086,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                       onChange={(e) => {
                         setEditEndTime(e.target.value);
                         if (e.target.value && !editEndDate) {
-                          setEditEndDate(getLocalDateString(new Date()));
+                          setEditEndDate(getLocalDateString());
                         }
                         if (e.target.value) {
                           setEditIsInProgress(false);
@@ -2308,69 +2238,14 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
               </button>
             </div>
 
-            {/* Sezione Inizio Sessione (Modificabile) */}
-            <div className="p-3 bg-stone-50 dark:bg-stone-900/60 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
-                  Data e Ora di Inizio Digiuno
-                </label>
-                <span className="text-[10px] text-stone-500 dark:text-stone-400">
-                  Modificabile
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-semibold text-stone-500 mb-1">Giorno Inizio</label>
-                  <input
-                    type="date"
-                    value={finishStartDate}
-                    onChange={(e) => handleFinishStartDateOrTimeChange(e.target.value, undefined)}
-                    onFocus={(e) => e.target.select()}
-                    className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-stone-500 mb-1">Ora Inizio</label>
-                  <input
-                    type="time"
-                    value={finishStartTime}
-                    onChange={(e) => handleFinishStartDateOrTimeChange(undefined, e.target.value)}
-                    onFocus={(e) => e.target.select()}
-                    className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="pt-1">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[10px] font-semibold text-stone-500">
-                    Glicemia Iniziale (mg/dL)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nearby = findNearbyGlucoseForFasting(allEntries && allEntries.length > 0 ? allEntries : entries, finishStartDate, finishStartTime, 3);
-                      if (nearby) setFinishStartGlucose(String(nearby.value));
-                    }}
-                    className="text-[10px] font-semibold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
-                  >
-                    Rileva vicina
-                  </button>
-                </div>
-                <input
-                  type="number"
-                  value={finishStartGlucose}
-                  onChange={(e) => setFinishStartGlucose(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  placeholder="Es. 135 (opzionale)"
-                  className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
+            {/* Inizio sessione info */}
+            <div className="bg-stone-50 dark:bg-stone-900/60 p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 flex items-center justify-between text-xs">
+              <span className="text-stone-600 dark:text-stone-400">Iniziato il:</span>
+              <strong className="text-stone-800 dark:text-stone-200 font-mono">{activeFastingData.startFormatted}</strong>
             </div>
 
             {/* End Date and Time with pickers */}
-            <div className="p-3 bg-stone-50 dark:bg-stone-900/60 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-stone-700 dark:text-stone-300">
                   Data e Ora di Fine (Rottura)
@@ -2379,9 +2254,8 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                   type="button"
                   onClick={() => {
                     const now = new Date();
-                    const d = getLocalDateString(now);
-                    const t = getLocalTimeString(now);
-                    handleFinishEndDateOrTimeChange(d, t);
+                    setFinishDate(getLocalDateString(now));
+                    setFinishTime(getLocalTimeString(now));
                   }}
                   className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline px-2 py-0.5 bg-teal-50 dark:bg-teal-950/40 rounded-md border border-teal-200 dark:border-teal-800 cursor-pointer"
                 >
@@ -2395,7 +2269,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                   <input
                     type="date"
                     value={finishDate}
-                    onChange={(e) => handleFinishEndDateOrTimeChange(e.target.value, undefined)}
+                    onChange={(e) => setFinishDate(e.target.value)}
                     onFocus={(e) => e.target.select()}
                     className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     required
@@ -2406,38 +2280,12 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                   <input
                     type="time"
                     value={finishTime}
-                    onChange={(e) => handleFinishEndDateOrTimeChange(undefined, e.target.value)}
+                    onChange={(e) => setFinishTime(e.target.value)}
                     onFocus={(e) => e.target.select()}
                     className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     required
                   />
                 </div>
-              </div>
-
-              <div className="pt-1">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[10px] font-semibold text-stone-500">
-                    Glicemia Finale (mg/dL alla rottura)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nearby = findNearbyGlucoseForFasting(allEntries && allEntries.length > 0 ? allEntries : entries, finishDate, finishTime, 3);
-                      if (nearby) setFinishGlucose(String(nearby.value));
-                    }}
-                    className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-                  >
-                    Rileva vicina
-                  </button>
-                </div>
-                <input
-                  type="number"
-                  value={finishGlucose}
-                  onChange={(e) => setFinishGlucose(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Es. 84 (auto-rilevata o manuale)"
-                />
               </div>
             </div>
 
@@ -2460,6 +2308,20 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
             )}
 
             <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                  Glicemia Finale (mg/dL alla rottura)
+                </label>
+                <input
+                  type="number"
+                  value={finishGlucose}
+                  onChange={(e) => setFinishGlucose(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Es. 84"
+                />
+              </div>
+
               <div>
                 <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
                   Note di Rottura Digiuno (es. pasto consumato)

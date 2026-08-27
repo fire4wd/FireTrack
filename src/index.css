@@ -14,10 +14,18 @@ html.dark, body.dark {
 }
 
 /* ========================================================================= */
-/* PDF EXPORT & PRINT WHITE THEME - CLINICAL HIGH-CONTRAST SPECIFICATION     */
+/* PDF EXPORT & PRINT WHITE THEME - STRICT CLINICAL SPECIFICATION            */
 /* Ensures all PDF exports and printouts have a pure white background,       */
-/* black numbers and text, and borders with the reference category color.    */
+/* black text and numbers, and color is ONLY applied to the border of the   */
+/* square, circle, or chip containing the number/status indicator.          */
+/* ON-SCREEN REPORTS ARE UNTOUCHED AND PRESERVE THEIR SCREEN STYLING.        */
 /* ========================================================================= */
+
+.pdf-export-mode,
+.pdf-export-mode body,
+.pdf-export-mode * {
+  color-scheme: light !important;
+}
 
 .pdf-export-mode,
 .pdf-export-mode body,
@@ -29,439 +37,248 @@ html.dark, body.dark {
   background-color: #ffffff !important;
   background-image: none !important;
   color: #000000 !important;
-  color-scheme: light !important;
 }
 
-/* Force container boxes to pure white */
-.pdf-export-mode [data-pdf-section="true"],
-.pdf-export-mode [data-pdf-section="true"] div[class*="bg-"],
-.pdf-export-mode [data-pdf-section="true"] section[class*="bg-"] {
+/* Force all containers, cards, headers, sections, badges, and boxes to white background */
+.pdf-export-mode div,
+.pdf-export-mode section,
+.pdf-export-mode article,
+.pdf-export-mode header,
+.pdf-export-mode footer,
+.pdf-export-mode ul,
+.pdf-export-mode li,
+.pdf-export-mode p,
+.pdf-export-mode td,
+.pdf-export-mode th {
+  background-image: none !important;
   box-shadow: none !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] .bg-\[\#131f2d\],
-.pdf-export-mode [data-pdf-section="true"] .bg-\[\#1a1d24\],
-.pdf-export-mode [data-pdf-section="true"] .bg-\[\#121418\],
-.pdf-export-mode [data-pdf-section="true"] .bg-stone-900,
-.pdf-export-mode [data-pdf-section="true"] .bg-stone-800 {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #000000 !important;
-}
-
-/* Header & Banner cards */
-.pdf-export-mode [data-pdf-section="true"] div[class*="from-\[\#1c2938\]"],
-.pdf-export-mode [data-pdf-section="true"] div[class*="from-\[\#162230\]"],
-.pdf-export-mode [data-pdf-section="true"] div[class*="bg-gradient-to-"] {
-  background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #000000 !important;
-}
-
-/* Neutral sub-boxes inside cards */
-.pdf-export-mode [data-pdf-section="true"] .bg-black\/20,
-.pdf-export-mode [data-pdf-section="true"] .bg-black\/30,
-.pdf-export-mode [data-pdf-section="true"] .bg-black\/40,
-.pdf-export-mode [data-pdf-section="true"] .bg-black\/50,
-.pdf-export-mode [data-pdf-section="true"] .bg-black\/60,
-.pdf-export-mode [data-pdf-section="true"] .bg-stone-950,
-.pdf-export-mode [data-pdf-section="true"] .bg-stone-900\/50 {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #000000 !important;
-}
-
-/* Border overrides - standard dividers */
-.pdf-export-mode [data-pdf-section="true"] *[class*="border-white\/"],
-.pdf-export-mode [data-pdf-section="true"] *[class*="border-stone-800"],
-.pdf-export-mode [data-pdf-section="true"] *[class*="border-stone-700"] {
-  border-color: #cbd5e1 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] *[class*="divide-white\/"],
-.pdf-export-mode [data-pdf-section="true"] *[class*="divide-stone-800"] {
-  border-color: #e2e8f0 !important;
-}
-
-/* Text overrides in PDF mode: ALL text and numbers are black */
-.pdf-export-mode [data-pdf-section="true"] .text-white,
-.pdf-export-mode [data-pdf-section="true"] .text-stone-100,
-.pdf-export-mode [data-pdf-section="true"] .text-stone-200,
-.pdf-export-mode [data-pdf-section="true"] .text-stone-300,
-.pdf-export-mode [data-pdf-section="true"] .text-stone-400 {
-  color: #000000 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] .text-stone-500,
-.pdf-export-mode [data-pdf-section="true"] .text-stone-600 {
-  color: #334155 !important;
-}
-
-/* Table overrides in PDF mode */
-.pdf-export-mode [data-pdf-section="true"] table {
-  background-color: #ffffff !important;
-  border-collapse: collapse !important;
-  color: #000000 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] table thead tr,
-.pdf-export-mode [data-pdf-section="true"] table thead th {
-  background-color: #f1f5f9 !important;
-  color: #000000 !important;
-  border-color: #cbd5e1 !important;
-  font-weight: 700 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] table tbody tr {
-  background-color: #ffffff !important;
-  color: #000000 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] table tbody tr:nth-child(even) {
-  background-color: #f8fafc !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] table td,
-.pdf-export-mode [data-pdf-section="true"] table th {
-  border-color: #cbd5e1 !important;
-  color: #000000 !important;
-}
-
-/* ========================================================================= */
-/* SQUARES, CHIPS & NUMBERS: WHITE BG + BLACK TEXT + CATEGORY-COLORED BORDER */
-/* ========================================================================= */
-
-/* Blood Tests / Laboratorio Specific Rules (White BG + Black Text + Colored Borders FOR PDF EXPORT ONLY) */
-.pdf-export-mode #printable-bloodtests-area,
-.pdf-export-mode #printable-bloodtests-area *,
-#printable-bloodtests-area.pdf-export-mode,
-#printable-bloodtests-area.pdf-export-mode * {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
   text-shadow: none !important;
 }
 
-.pdf-export-mode #printable-bloodtests-area,
-.pdf-export-mode #printable-bloodtests-area div,
-.pdf-export-mode #printable-bloodtests-area table,
-.pdf-export-mode #printable-bloodtests-area thead,
-.pdf-export-mode #printable-bloodtests-area tbody,
-.pdf-export-mode #printable-bloodtests-area tr,
-.pdf-export-mode #printable-bloodtests-area th,
-.pdf-export-mode #printable-bloodtests-area td,
-#printable-bloodtests-area.pdf-export-mode,
-#printable-bloodtests-area.pdf-export-mode div,
-#printable-bloodtests-area.pdf-export-mode table,
-#printable-bloodtests-area.pdf-export-mode thead,
-#printable-bloodtests-area.pdf-export-mode tbody,
-#printable-bloodtests-area.pdf-export-mode tr,
-#printable-bloodtests-area.pdf-export-mode th,
-#printable-bloodtests-area.pdf-export-mode td {
+/* Universal override for background color classes in PDF export */
+.pdf-export-mode *[class*="bg-"],
+.pdf-export-mode *[class*="from-"],
+.pdf-export-mode *[class*="via-"],
+.pdf-export-mode *[class*="to-"] {
   background-color: #ffffff !important;
-  background: #ffffff !important;
+  background-image: none !important;
 }
 
-.pdf-export-mode #printable-bloodtests-area table th,
-.pdf-export-mode #printable-bloodtests-area table td,
-#printable-bloodtests-area.pdf-export-mode table th,
-#printable-bloodtests-area.pdf-export-mode table td {
+/* Standard structural card borders and dividers */
+.pdf-export-mode *[class*="border"] {
   border-color: #cbd5e1 !important;
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  background-color: #ffffff !important;
-  background: #ffffff !important;
 }
 
-/* Badge Normale (Verde) nel PDF: Sfondo Bianco, Testo/Numeri Neri, Bordo Verde */
-.pdf-export-mode .blood-badge-normal,
-.pdf-export-mode [data-pdf-section="true"] .blood-badge-normal,
-.pdf-export-mode #printable-bloodtests-area .blood-badge-normal,
-#printable-bloodtests-area.pdf-export-mode .blood-badge-normal,
-.pdf-export-mode div.blood-badge-normal,
-.pdf-export-mode [data-blood-status="normal"],
-.pdf-export-mode div[data-blood-status="normal"] {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 2px solid #16a34a !important;
-  border-color: #16a34a !important;
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  box-shadow: none !important;
+.pdf-export-mode *[class*="divide-"] {
+  border-color: #e2e8f0 !important;
 }
 
-.pdf-export-mode .blood-badge-normal *,
-.pdf-export-mode [data-pdf-section="true"] .blood-badge-normal *,
-.pdf-export-mode #printable-bloodtests-area .blood-badge-normal *,
-#printable-bloodtests-area.pdf-export-mode .blood-badge-normal *,
-.pdf-export-mode div.blood-badge-normal *,
-.pdf-export-mode [data-blood-status="normal"] *,
-.pdf-export-mode div[data-blood-status="normal"] * {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  background-color: transparent !important;
-}
-
-/* Badge Fuori Soglia (Rosso) nel PDF: Sfondo Bianco, Testo/Numeri Neri, Bordo Rosso */
-.pdf-export-mode .blood-badge-out,
-.pdf-export-mode [data-pdf-section="true"] .blood-badge-out,
-.pdf-export-mode #printable-bloodtests-area .blood-badge-out,
-#printable-bloodtests-area.pdf-export-mode .blood-badge-out,
-.pdf-export-mode div.blood-badge-out,
-.pdf-export-mode [data-blood-status="out"],
-.pdf-export-mode div[data-blood-status="out"] {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 2px solid #dc2626 !important;
-  border-color: #dc2626 !important;
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  box-shadow: none !important;
-}
-
-.pdf-export-mode .blood-badge-out *,
-.pdf-export-mode [data-pdf-section="true"] .blood-badge-out *,
-.pdf-export-mode #printable-bloodtests-area .blood-badge-out *,
-#printable-bloodtests-area.pdf-export-mode .blood-badge-out *,
-.pdf-export-mode div.blood-badge-out *,
-.pdf-export-mode [data-blood-status="out"] *,
-.pdf-export-mode div[data-blood-status="out"] * {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  background-color: transparent !important;
-}
-
-.pdf-export-mode .blood-metric-card,
-.pdf-export-mode [data-pdf-section="true"] .blood-metric-card {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-}
-
-.pdf-export-mode .blood-icon-purple,
-.pdf-export-mode [data-pdf-section="true"] .blood-icon-purple {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 2px solid #9333ea !important;
-  color: #9333ea !important;
-}
-
-.pdf-export-mode .blood-icon-blue,
-.pdf-export-mode [data-pdf-section="true"] .blood-icon-blue {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 2px solid #2563eb !important;
-  color: #2563eb !important;
-}
-
-.pdf-export-mode .blood-icon-green,
-.pdf-export-mode [data-pdf-section="true"] .blood-icon-green {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 2px solid #16a34a !important;
-  color: #16a34a !important;
-}
-
-.pdf-export-mode .blood-icon-red,
-.pdf-export-mode [data-pdf-section="true"] .blood-icon-red {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 2px solid #dc2626 !important;
-  color: #dc2626 !important;
-}
-
-.pdf-export-mode .blood-legend-green-box,
-.pdf-export-mode [data-pdf-section="true"] .blood-legend-green-box {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 2px solid #16a34a !important;
-}
-
-.pdf-export-mode .blood-legend-red-box,
-.pdf-export-mode [data-pdf-section="true"] .blood-legend-red-box {
-  background-color: #ffffff !important;
-  background: #ffffff !important;
-  border: 2px solid #dc2626 !important;
-}
-
-.pdf-export-mode .blood-legend-green-text,
-.pdf-export-mode .blood-legend-red-text,
-.pdf-export-mode .blood-legend-title,
-.pdf-export-mode [data-pdf-section="true"] .blood-legend-green-text,
-.pdf-export-mode [data-pdf-section="true"] .blood-legend-red-text,
-.pdf-export-mode [data-pdf-section="true"] .blood-legend-title {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-}
-
-/* Category 1: Glicemia Target / Ideale (Emerald / Green) */
-.pdf-export-mode [data-pdf-section="true"] .bg-emerald-950\/60,
-.pdf-export-mode [data-pdf-section="true"] .bg-emerald-950\/50,
-.pdf-export-mode [data-pdf-section="true"] .bg-emerald-950\/40,
-.pdf-export-mode [data-pdf-section="true"] .bg-emerald-900,
-.pdf-export-mode [data-pdf-section="true"] .bg-emerald-800,
-.pdf-export-mode [data-pdf-section="true"] .bg-emerald-700,
-.pdf-export-mode [data-pdf-section="true"] .bg-emerald-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-emerald-500,
-.pdf-export-mode [data-pdf-section="true"] .bg-green-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-green-500 {
-  background-color: #ffffff !important;
-  border: 2px solid #16a34a !important;
+/* Universal text override: ALL text, headings, numbers, and labels are black */
+.pdf-export-mode [class*="text-"],
+.pdf-export-mode span,
+.pdf-export-mode p,
+.pdf-export-mode h1,
+.pdf-export-mode h2,
+.pdf-export-mode h3,
+.pdf-export-mode h4,
+.pdf-export-mode h5,
+.pdf-export-mode h6,
+.pdf-export-mode strong,
+.pdf-export-mode b,
+.pdf-export-mode td,
+.pdf-export-mode th,
+.pdf-export-mode label,
+.pdf-export-mode div {
   color: #000000 !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] .border-emerald-500\/40,
-.pdf-export-mode [data-pdf-section="true"] .border-emerald-400,
-.pdf-export-mode [data-pdf-section="true"] .border-emerald-500,
-.pdf-export-mode [data-pdf-section="true"] .border-emerald-600 {
+/* Table styling in PDF mode */
+.pdf-export-mode table {
+  background-color: #ffffff !important;
+  border-collapse: collapse !important;
+  color: #000000 !important;
+  width: 100% !important;
+}
+
+.pdf-export-mode table thead tr,
+.pdf-export-mode table thead th {
+  background-color: #f1f5f9 !important;
+  color: #000000 !important;
+  border: 1px solid #cbd5e1 !important;
+  font-weight: 700 !important;
+}
+
+.pdf-export-mode table tbody tr {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.pdf-export-mode table tbody tr:nth-child(even) {
+  background-color: #f8fafc !important;
+}
+
+.pdf-export-mode table td {
+  border: 1px solid #cbd5e1 !important;
+  color: #000000 !important;
+}
+
+/* ========================================================================= */
+/* SQUARES, CIRCLES, PILLS & CHIPS CONTAINING NUMBERS:                       */
+/* PURE WHITE BACKGROUND + BLACK TEXT + COLORED BORDER ONLY                  */
+/* ========================================================================= */
+
+/* 1. Verde / Smeraldo (Target Ideale / Normal / Completed) */
+.pdf-export-mode *[class*="emerald"],
+.pdf-export-mode *[class*="green"],
+.pdf-export-mode *[class*="lime"],
+.pdf-export-mode .bg-\[\#dcfce7\],
+.pdf-export-mode .text-\[\#15803d\],
+.pdf-export-mode .border-\[\#2e7d32\],
+.pdf-export-mode .border-\[\#16a34a\] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
   border-color: #16a34a !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] .text-emerald-300,
-.pdf-export-mode [data-pdf-section="true"] .text-emerald-400,
-.pdf-export-mode [data-pdf-section="true"] .text-emerald-500,
-.pdf-export-mode [data-pdf-section="true"] .text-emerald-600 {
+.pdf-export-mode span[class*="emerald"],
+.pdf-export-mode span[class*="green"],
+.pdf-export-mode span[class*="lime"],
+.pdf-export-mode div[class*="rounded"][class*="emerald"],
+.pdf-export-mode div[class*="rounded"][class*="green"],
+.pdf-export-mode div[class*="rounded"][class*="lime"],
+.pdf-export-mode td.bg-\[\#dcfce7\],
+.pdf-export-mode span.border-\[\#2e7d32\] {
+  background-color: #ffffff !important;
+  border: 2px solid #16a34a !important;
   color: #000000 !important;
 }
 
-/* Category 2: Glicemia Fuori Target / Iper / Battiti (Rose / Red) */
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-950\/80,
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-950\/60,
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-950\/50,
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-950\/40,
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-900,
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-800,
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-700,
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-rose-500,
-.pdf-export-mode [data-pdf-section="true"] .bg-red-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-red-500 {
+/* 2. Rosso / Rose / Fucsia (Iper / Fuori Target / Elevato / Alert) */
+.pdf-export-mode *[class*="rose"],
+.pdf-export-mode *[class*="red"],
+.pdf-export-mode *[class*="pink"],
+.pdf-export-mode .bg-\[\#fee2e2\],
+.pdf-export-mode .text-\[\#b91c1c\],
+.pdf-export-mode .border-\[\#c2185b\],
+.pdf-export-mode .border-\[\#d93838\],
+.pdf-export-mode .border-\[\#dc2626\] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #dc2626 !important;
+}
+
+.pdf-export-mode span[class*="rose"],
+.pdf-export-mode span[class*="red"],
+.pdf-export-mode span[class*="pink"],
+.pdf-export-mode div[class*="rounded"][class*="rose"],
+.pdf-export-mode div[class*="rounded"][class*="red"],
+.pdf-export-mode div[class*="rounded"][class*="pink"],
+.pdf-export-mode td.bg-\[\#fee2e2\],
+.pdf-export-mode span.border-\[\#c2185b\],
+.pdf-export-mode span.border-\[\#d93838\] {
   background-color: #ffffff !important;
   border: 2px solid #dc2626 !important;
   color: #000000 !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] .border-rose-500\/40,
-.pdf-export-mode [data-pdf-section="true"] .border-rose-400,
-.pdf-export-mode [data-pdf-section="true"] .border-rose-500,
-.pdf-export-mode [data-pdf-section="true"] .border-rose-600 {
-  border-color: #dc2626 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] .text-rose-200,
-.pdf-export-mode [data-pdf-section="true"] .text-rose-300,
-.pdf-export-mode [data-pdf-section="true"] .text-rose-400,
-.pdf-export-mode [data-pdf-section="true"] .text-rose-500 {
+/* 3. Azzurro / Blu / Sky (Ipo / Pressione Arteriosa / Min / Low) */
+.pdf-export-mode *[class*="sky"],
+.pdf-export-mode *[class*="blue"],
+.pdf-export-mode .border-\[\#0288d1\],
+.pdf-export-mode .text-\[\#0288d1\],
+.pdf-export-mode .bg-\[\#0288d1\] {
+  background-color: #ffffff !important;
   color: #000000 !important;
+  border-color: #0284c7 !important;
 }
 
-/* Category 3: Pressione Arteriosa / Ipo (Sky / Blue) */
-.pdf-export-mode [data-pdf-section="true"] .bg-sky-950\/60,
-.pdf-export-mode [data-pdf-section="true"] .bg-sky-950\/50,
-.pdf-export-mode [data-pdf-section="true"] .bg-sky-950\/40,
-.pdf-export-mode [data-pdf-section="true"] .bg-sky-900,
-.pdf-export-mode [data-pdf-section="true"] .bg-sky-800,
-.pdf-export-mode [data-pdf-section="true"] .bg-sky-700,
-.pdf-export-mode [data-pdf-section="true"] .bg-sky-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-sky-500,
-.pdf-export-mode [data-pdf-section="true"] .bg-blue-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-blue-500 {
+.pdf-export-mode span[class*="sky"],
+.pdf-export-mode span[class*="blue"],
+.pdf-export-mode div[class*="rounded"][class*="sky"],
+.pdf-export-mode div[class*="rounded"][class*="blue"],
+.pdf-export-mode span.border-\[\#0288d1\] {
   background-color: #ffffff !important;
   border: 2px solid #0284c7 !important;
   color: #000000 !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] .border-sky-500\/40,
-.pdf-export-mode [data-pdf-section="true"] .border-sky-400,
-.pdf-export-mode [data-pdf-section="true"] .border-sky-500,
-.pdf-export-mode [data-pdf-section="true"] .border-sky-600 {
-  border-color: #0284c7 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] .text-sky-200,
-.pdf-export-mode [data-pdf-section="true"] .text-sky-300,
-.pdf-export-mode [data-pdf-section="true"] .text-sky-400,
-.pdf-export-mode [data-pdf-section="true"] .text-sky-500 {
+/* 4. Ambra / Arancio / Giallo (Carboidrati / Pasti / Peso / Pre-pasto / Alert Medio) */
+.pdf-export-mode *[class*="amber"],
+.pdf-export-mode *[class*="orange"],
+.pdf-export-mode *[class*="yellow"],
+.pdf-export-mode .border-\[\#8cc63f\],
+.pdf-export-mode .border-\[\#e0b828\],
+.pdf-export-mode .text-\[\#e0b828\],
+.pdf-export-mode .bg-\[\#e0b828\] {
+  background-color: #ffffff !important;
   color: #000000 !important;
+  border-color: #d97706 !important;
 }
 
-/* Category 4: Carboidrati / Pasti / Peso (Amber / Orange) */
-.pdf-export-mode [data-pdf-section="true"] .bg-amber-950\/60,
-.pdf-export-mode [data-pdf-section="true"] .bg-amber-950\/50,
-.pdf-export-mode [data-pdf-section="true"] .bg-amber-950\/40,
-.pdf-export-mode [data-pdf-section="true"] .bg-amber-900,
-.pdf-export-mode [data-pdf-section="true"] .bg-amber-800,
-.pdf-export-mode [data-pdf-section="true"] .bg-amber-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-amber-500 {
+.pdf-export-mode span[class*="amber"],
+.pdf-export-mode span[class*="orange"],
+.pdf-export-mode span[class*="yellow"],
+.pdf-export-mode div[class*="rounded"][class*="amber"],
+.pdf-export-mode div[class*="rounded"][class*="orange"],
+.pdf-export-mode div[class*="rounded"][class*="yellow"],
+.pdf-export-mode span.border-\[\#8cc63f\],
+.pdf-export-mode span.border-\[\#e0b828\] {
   background-color: #ffffff !important;
   border: 2px solid #d97706 !important;
   color: #000000 !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] .border-amber-500\/40,
-.pdf-export-mode [data-pdf-section="true"] .border-amber-400,
-.pdf-export-mode [data-pdf-section="true"] .border-amber-500 {
-  border-color: #d97706 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] .text-amber-200,
-.pdf-export-mode [data-pdf-section="true"] .text-amber-300,
-.pdf-export-mode [data-pdf-section="true"] .text-amber-400 {
-  color: #000000 !important;
-}
-
-/* Category 5: Farmaci / Insulina / Notte (Indigo / Purple) */
-.pdf-export-mode [data-pdf-section="true"] .bg-indigo-950\/60,
-.pdf-export-mode [data-pdf-section="true"] .bg-indigo-950\/50,
-.pdf-export-mode [data-pdf-section="true"] .bg-indigo-900,
-.pdf-export-mode [data-pdf-section="true"] .bg-indigo-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-indigo-500,
-.pdf-export-mode [data-pdf-section="true"] .bg-purple-950\/60,
-.pdf-export-mode [data-pdf-section="true"] .bg-purple-600 {
+/* 5. Ciano / Teal (Digiuno Intermittente / Target / Piani) */
+.pdf-export-mode *[class*="teal"],
+.pdf-export-mode *[class*="cyan"],
+.pdf-export-mode .border-\[\#1d8998\],
+.pdf-export-mode .border-\[\#2ca3b5\] {
   background-color: #ffffff !important;
-  border: 2px solid #4f46e5 !important;
   color: #000000 !important;
+  border-color: #0d9488 !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] .border-indigo-500\/40,
-.pdf-export-mode [data-pdf-section="true"] .border-indigo-400,
-.pdf-export-mode [data-pdf-section="true"] .border-indigo-500 {
-  border-color: #4f46e5 !important;
-}
-
-.pdf-export-mode [data-pdf-section="true"] .text-indigo-200,
-.pdf-export-mode [data-pdf-section="true"] .text-indigo-300 {
-  color: #000000 !important;
-}
-
-/* Category 6: Digiuno / Attività (Teal / Cyan) */
-.pdf-export-mode [data-pdf-section="true"] .bg-teal-950\/60,
-.pdf-export-mode [data-pdf-section="true"] .bg-teal-950\/50,
-.pdf-export-mode [data-pdf-section="true"] .bg-teal-900,
-.pdf-export-mode [data-pdf-section="true"] .bg-teal-600,
-.pdf-export-mode [data-pdf-section="true"] .bg-teal-500 {
+.pdf-export-mode span[class*="teal"],
+.pdf-export-mode span[class*="cyan"],
+.pdf-export-mode div[class*="rounded"][class*="teal"],
+.pdf-export-mode div[class*="rounded"][class*="cyan"],
+.pdf-export-mode span.border-\[\#1d8998\],
+.pdf-export-mode span.border-\[\#2ca3b5\] {
   background-color: #ffffff !important;
   border: 2px solid #0d9488 !important;
   color: #000000 !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] .border-teal-500\/40,
-.pdf-export-mode [data-pdf-section="true"] .border-teal-400,
-.pdf-export-mode [data-pdf-section="true"] .border-teal-500 {
-  border-color: #0d9488 !important;
+/* 6. Viola / Indaco (Farmaci / Notte / Analisi) */
+.pdf-export-mode *[class*="purple"],
+.pdf-export-mode *[class*="indigo"],
+.pdf-export-mode *[class*="violet"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #7c3aed !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] .text-teal-300,
-.pdf-export-mode [data-pdf-section="true"] .text-teal-400 {
+.pdf-export-mode span[class*="purple"],
+.pdf-export-mode span[class*="indigo"],
+.pdf-export-mode span[class*="violet"],
+.pdf-export-mode div[class*="rounded"][class*="purple"],
+.pdf-export-mode div[class*="rounded"][class*="indigo"],
+.pdf-export-mode div[class*="rounded"][class*="violet"] {
+  background-color: #ffffff !important;
+  border: 2px solid #7c3aed !important;
   color: #000000 !important;
 }
 
 /* SVG charts in PDF mode */
-.pdf-export-mode [data-pdf-section="true"] svg text {
+.pdf-export-mode svg text {
   fill: #000000 !important;
+  font-weight: 600 !important;
 }
 
-.pdf-export-mode [data-pdf-section="true"] svg line[stroke*="#"] {
-  opacity: 0.7 !important;
+.pdf-export-mode svg line[stroke],
+.pdf-export-mode svg path.recharts-cartesian-grid-line {
+  stroke: #e2e8f0 !important;
+  opacity: 0.8 !important;
 }
 
 @media print {
@@ -497,115 +314,77 @@ html.dark, body.dark {
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
-    color: #0f172a !important;
+    color: #000000 !important;
     box-shadow: none !important;
     border: none !important;
+  }
+
+  /* Force white backgrounds and black text for all children in print */
+  #printable-report-area div,
+  #printable-report-area section,
+  #printable-bloodtests-area div,
+  #printable-history-area div,
+  #printable-classic-calendar-area div,
+  [data-pdf-section="true"] div,
+  [data-pdf-section="true"] section {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+
+  #printable-report-area *,
+  #printable-bloodtests-area *,
+  #printable-history-area *,
+  #printable-classic-calendar-area *,
+  [data-pdf-section="true"] * {
+    color: #000000 !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* Target & category colored borders in print */
+  [data-pdf-section="true"] *[class*="emerald"],
+  [data-pdf-section="true"] *[class*="green"],
+  [data-pdf-section="true"] .bg-\[\#dcfce7\],
+  [data-pdf-section="true"] .border-\[\#2e7d32\] {
+    border-color: #16a34a !important;
+  }
+
+  [data-pdf-section="true"] *[class*="rose"],
+  [data-pdf-section="true"] *[class*="red"],
+  [data-pdf-section="true"] .bg-\[\#fee2e2\],
+  [data-pdf-section="true"] .border-\[\#c2185b\],
+  [data-pdf-section="true"] .border-\[\#d93838\] {
+    border-color: #dc2626 !important;
+  }
+
+  [data-pdf-section="true"] *[class*="sky"],
+  [data-pdf-section="true"] *[class*="blue"],
+  [data-pdf-section="true"] .border-\[\#0288d1\] {
+    border-color: #0284c7 !important;
+  }
+
+  [data-pdf-section="true"] *[class*="amber"],
+  [data-pdf-section="true"] *[class*="orange"],
+  [data-pdf-section="true"] *[class*="yellow"],
+  [data-pdf-section="true"] .border-\[\#8cc63f\],
+  [data-pdf-section="true"] .border-\[\#e0b828\] {
+    border-color: #d97706 !important;
+  }
+
+  [data-pdf-section="true"] *[class*="teal"],
+  [data-pdf-section="true"] *[class*="cyan"] {
+    border-color: #0d9488 !important;
+  }
+
+  [data-pdf-section="true"] *[class*="purple"],
+  [data-pdf-section="true"] *[class*="indigo"] {
+    border-color: #7c3aed !important;
   }
 
   /* Ensure background colors and borders are preserved during printing */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-  }
-
-  /* Laboratorio Print Rules */
-  #printable-bloodtests-area,
-  #printable-bloodtests-area * {
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    text-shadow: none !important;
-  }
-
-  #printable-bloodtests-area table,
-  #printable-bloodtests-area thead,
-  #printable-bloodtests-area tbody,
-  #printable-bloodtests-area tr,
-  #printable-bloodtests-area th,
-  #printable-bloodtests-area td {
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    border-color: #cbd5e1 !important;
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-  }
-
-  #printable-bloodtests-area .blood-badge,
-  #printable-bloodtests-area .blood-badge-normal,
-  #printable-bloodtests-area [data-blood-status="normal"] {
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    border: 2px solid #16a34a !important;
-    border-color: #16a34a !important;
-    border-width: 2px !important;
-    border-style: solid !important;
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    box-shadow: none !important;
-  }
-
-  #printable-bloodtests-area .blood-badge-normal *,
-  #printable-bloodtests-area [data-blood-status="normal"] * {
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    background-color: transparent !important;
-    background: transparent !important;
-  }
-
-  #printable-bloodtests-area .blood-badge-out,
-  #printable-bloodtests-area [data-blood-status="out"] {
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    border: 2px solid #dc2626 !important;
-    border-color: #dc2626 !important;
-    border-width: 2px !important;
-    border-style: solid !important;
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    box-shadow: none !important;
-  }
-
-  #printable-bloodtests-area .blood-badge-out *,
-  #printable-bloodtests-area [data-blood-status="out"] * {
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    background-color: transparent !important;
-    background: transparent !important;
-  }
-
-  #printable-bloodtests-area .blood-icon-purple {
-    background-color: #ffffff !important;
-    border: 2px solid #9333ea !important;
-    color: #9333ea !important;
-  }
-
-  #printable-bloodtests-area .blood-icon-blue {
-    background-color: #ffffff !important;
-    border: 2px solid #2563eb !important;
-    color: #2563eb !important;
-  }
-
-  #printable-bloodtests-area .blood-icon-green {
-    background-color: #ffffff !important;
-    border: 2px solid #16a34a !important;
-    color: #16a34a !important;
-  }
-
-  #printable-bloodtests-area .blood-icon-red {
-    background-color: #ffffff !important;
-    border: 2px solid #dc2626 !important;
-    color: #dc2626 !important;
-  }
-
-  #printable-bloodtests-area .blood-legend-green-box {
-    background-color: #ffffff !important;
-    border: 2px solid #16a34a !important;
-  }
-
-  #printable-bloodtests-area .blood-legend-red-box {
-    background-color: #ffffff !important;
-    border: 2px solid #dc2626 !important;
   }
 
   /* Hide interactive elements, buttons, and navigation */

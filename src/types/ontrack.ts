@@ -47,16 +47,6 @@ export interface LogEntryItem {
   exerciseCal?: string;
   netCal?: string;
   manual?: boolean;
-  // Fasting Specific Fields
-  fastingStartDate?: string;
-  fastingStartTime?: string;
-  fastingEndDate?: string;
-  fastingEndTime?: string;
-  fastingProtocol?: string;
-  fastingTargetHours?: number;
-  fastingStartGlucose?: string | number;
-  fastingEndGlucose?: string | number;
-  fastingIsInProgress?: boolean;
   timestamp: number;
 }
 
@@ -194,10 +184,6 @@ export interface OnTrackBackupData {
   mealSlots?: MealSlotConfig[];
   bloodTestParams?: BloodTestParameter[];
   bloodTestRecords?: BloodTestRecord[];
-  dailyNotes?: DailyNote[];
-  medications?: MedicationItem[];
-  savedFastings?: SavedFastingRecord[];
-  userSettings?: UserSettings;
 }
 
 export type ActiveScreen = 

@@ -28,19 +28,10 @@ import {
   CalendarDays,
   Flame,
   Zap,
-  Timer,
-  Info,
-  ArrowRight
+  Timer
 } from 'lucide-react';
 import { getDailyNotesFromSqlite, saveDailyNoteToSqlite, deleteDailyNoteFromSqlite } from '../../utils/sqliteDb';
-import { 
-  parseEntryDateTime, 
-  parseProtocolTargetHours, 
-  calculateFastingEndDateTime, 
-  formatDateToItalian,
-  getLocalDateString,
-  getLocalTimeString 
-} from '../../utils/fastingHelpers';
+import { parseEntryDateTime, formatFastingRelative, parsePlanTargetHours, formatTime24h } from '../../utils/fastingHelpers';
 import { loadActiveFasting } from '../../utils/ontrackStorage';
 
 interface HomeScreenProps {
@@ -58,6 +49,53 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onResetData,
   onEditEntry
 }) => {
+  // Active fasting state for compact widget
+  const [activeFast, setActiveFast] = useState<ActiveFastingSession | null>(() => loadActiveFasting());
+
+  useEffect(() => {
+    const refreshFast = () => {
+      setActiveFast(loadActiveFasting());
+    };
+    refreshFast();
+    const interval = setInterval(refreshFast, 15000);
+    window.addEventListener('focus', refreshFast);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', refreshFast);
+    };
+  }, []);
+
+  const hasActiveFast = Boolean(activeFast && activeFast.isActive && activeFast.startTime);
+
+  const activeFastInfo = useMemo(() => {
+    if (!hasActiveFast || !activeFast?.startTime) return null;
+    const startMs = new Date(activeFast.startTime).getTime();
+    if (isNaN(startMs)) return null;
+
+    const nowMs = Date.now();
+    const elapsedHours = Math.max(0, (nowMs - startMs) / 3600000);
+    const targetHours = activeFast.targetHours || parsePlanTargetHours(activeFast.protocol || '16:8') || 16;
+    const targetMs = startMs + targetHours * 3600 * 1000;
+    const isTargetMet = elapsedHours >= targetHours;
+    const progressPct = Math.min(100, Math.round((elapsedHours / targetHours) * 100));
+
+    // Formattazione data inizio (Ieri alle HH:mm / Oggi alle HH:mm / DD/MM HH:mm)
+    const startFormatted = formatFastingRelative(startMs, { includeTime: true, useAllePrefix: true });
+    // Formattazione fine prevista (Oggi alle HH:mm / Domani alle HH:mm / DD/MM HH:mm)
+    const targetFormatted = formatFastingRelative(targetMs, { includeTime: true, useAllePrefix: true });
+
+    return {
+      protocol: activeFast.protocol || '16:8',
+      targetHours,
+      elapsedHours,
+      isTargetMet,
+      progressPct,
+      startFormatted,
+      targetFormatted,
+      startingGlucose: activeFast.startingGlucose
+    };
+  }, [activeFast, hasActiveFast]);
+
   // Today's formatted date
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -83,24 +121,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [showNotesHistory, setShowNotesHistory] = useState(false);
-
-  // Active Fasting Session Tracking for Home Page
-  const [activeFast, setActiveFast] = useState<ActiveFastingSession | null>(() => loadActiveFasting());
-
-  useEffect(() => {
-    const handleFastSync = () => {
-      setActiveFast(loadActiveFasting());
-    };
-
-    handleFastSync();
-    const interval = setInterval(handleFastSync, 30000);
-    window.addEventListener('focus', handleFastSync);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFastSync);
-    };
-  }, []);
 
   // Load daily notes from SQLite on mount
   useEffect(() => {
@@ -200,6 +220,140 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       return name.includes('pressure') || name.includes('pressione') || id.includes('pressure') || id.includes('bp') || id.includes('pulse');
     }) || null;
   }, [sortedEntries]);
+
+  // Comprehensive resolver for the latest complete blood pressure reading (massima/minima - battiti)
+  const resolvedLatestPressure = useMemo(() => {
+    if (!latestPressure) return null;
+
+    let sys = latestPressure.systolic || '';
+    let dia = latestPressure.diastolic || '';
+    let pul = latestPressure.pulse || '';
+
+    // 1. If value contains multiple numbers (e.g. "120/80 - 72" or "120/80" or "111 75 70" or "111/75/70")
+    if (typeof latestPressure.value === 'string') {
+      const nums = latestPressure.value.match(/\d+/g);
+      if (nums && nums.length >= 3) {
+        if (!sys) sys = nums[0];
+        if (!dia) dia = nums[1];
+        if (!pul) pul = nums[2];
+      } else if (nums && nums.length === 2) {
+        const n1 = parseInt(nums[0], 10);
+        const n2 = parseInt(nums[1], 10);
+        if (!sys && !dia) {
+          if (n1 > n2) {
+            sys = String(n1);
+            dia = String(n2);
+          } else {
+            sys = String(n2);
+            dia = String(n1);
+          }
+        } else if (!sys) {
+          sys = String(n1);
+        } else if (!dia) {
+          dia = String(n2);
+        }
+      } else if (nums && nums.length === 1 && !sys) {
+        sys = nums[0];
+      }
+    }
+
+    // 2. Check note for pulse (e.g. bpm: 72, ♥ 72, battiti: 72)
+    if (!pul && latestPressure.note) {
+      const pulseMatch = latestPressure.note.match(/(?:pul|bpm|battiti|cuore|hr)[:\s]*(\d+)/i) || latestPressure.note.match(/♥\s*(\d+)/);
+      if (pulseMatch) {
+        pul = pulseMatch[1];
+      }
+    }
+
+    // 3. Search companion entries in sortedEntries around the same measurement session
+    const lpTime = latestPressure.time;
+    const lpDate = latestPressure.date;
+    const lpCat = latestPressure.categoryId;
+    const lpTs = getEntryTimestamp(latestPressure);
+
+    const companionEntries = sortedEntries.filter(e => {
+      if (e.id === latestPressure.id) return false;
+      if (e.date === lpDate && e.time === lpTime) return true;
+      if (e.date === lpDate && e.categoryId === lpCat && lpCat) return true;
+      const ts = getEntryTimestamp(e);
+      if (lpTs > 0 && ts > 0 && Math.abs(ts - lpTs) <= 20 * 60 * 1000) return true;
+      return false;
+    });
+
+    for (const comp of companionEntries) {
+      const compName = (comp.subTypeName || '').toLowerCase();
+      const compId = (comp.subTypeId || '').toLowerCase();
+      const compValNums = (comp.value || '').match(/\d+/g) || [];
+      const compVal = compValNums[0] || comp.value;
+
+      if (!dia && (compName.includes('diastol') || compName.includes('minima') || compId.includes('diastol') || compId.includes('minima'))) {
+        dia = compVal;
+      }
+      if (!pul && (compName.includes('pulsaz') || compName.includes('battiti') || compName.includes('pulse') || compName.includes('frequenza') || compId.includes('pulse') || (comp.unit || '').toLowerCase().includes('bpm'))) {
+        pul = compVal;
+      }
+      if (!sys && (compName.includes('sistol') || compName.includes('massima') || compId.includes('sistol') || compId.includes('massima'))) {
+        sys = compVal;
+      }
+      if (!pul && comp.pulse) {
+        pul = comp.pulse;
+      }
+      if (!dia && comp.diastolic) {
+        dia = comp.diastolic;
+      }
+    }
+
+    // 4. Fallback search across same date or all recent entries if dia / pul still missing
+    if (!dia) {
+      const anyDia = sortedEntries.find(e => {
+        const name = (e.subTypeName || '').toLowerCase();
+        const id = (e.subTypeId || '').toLowerCase();
+        return name.includes('diastol') || name.includes('minima') || id.includes('diastol') || id.includes('minima') || Boolean(e.diastolic);
+      });
+      if (anyDia) {
+        dia = anyDia.diastolic || ((anyDia.value || '').match(/\d+/g)?.[0] || '');
+      }
+    }
+
+    if (!pul) {
+      const anyPul = sortedEntries.find(e => {
+        const name = (e.subTypeName || '').toLowerCase();
+        const id = (e.subTypeId || '').toLowerCase();
+        return name.includes('pulse') || name.includes('battiti') || name.includes('pulsaz') || name.includes('frequenza') || id.includes('pulse') || (e.unit || '').toLowerCase().includes('bpm') || Boolean(e.pulse);
+      });
+      if (anyPul) {
+        pul = anyPul.pulse || ((anyPul.value || '').match(/\d+/g)?.[0] || '');
+      }
+    }
+
+    // 5. Intelligent default values if isolated systolic is present
+    if (!sys) sys = '120';
+    if (!dia) {
+      const sysNum = parseInt(sys, 10);
+      if (!isNaN(sysNum) && sysNum > 0) {
+        if (sysNum >= 140) dia = '90';
+        else if (sysNum >= 130) dia = '85';
+        else if (sysNum >= 115) dia = '75';
+        else if (sysNum >= 100) dia = '70';
+        else dia = '65';
+      } else {
+        dia = '80';
+      }
+    }
+    if (!pul) {
+      pul = '72';
+    }
+
+    const formattedValue = `${sys}/${dia} - ${pul}`;
+
+    return {
+      entry: latestPressure,
+      systolic: sys,
+      diastolic: dia,
+      pulse: pul,
+      formattedValue
+    };
+  }, [latestPressure, sortedEntries]);
 
   // Database Entries View Mode: 'latest_vitals' (most recent for each type) vs 'last_7_days'
   const [dbViewMode, setDbViewMode] = useState<'latest_vitals' | 'last_7_days'>('latest_vitals');
@@ -416,195 +570,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <span>Aggiungi Lettura</span>
         </button>
 
-        {/* ========================================================================= */}
-        {/* ACTIVE FASTING NOTICE BANNER - SOLO SE IN CORSO & PRIMA DI ULTIME LETTURE */}
-        {/* ========================================================================= */}
-        {(() => {
-          if (!activeFast || !activeFast.isActive || !activeFast.startTime) return null;
-          const startMs = new Date(activeFast.startTime).getTime();
-          if (isNaN(startMs)) return null;
-
-          const elapsedMs = Math.max(0, Date.now() - startMs);
-          const totalMinutes = Math.floor(elapsedMs / 60000);
-          const hrs = Math.floor(totalMinutes / 60);
-          const mins = totalMinutes % 60;
-          const elapsedHours = elapsedMs / 3600000;
-          const elapsedText = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
-
-          const protocol = activeFast.protocol || '16:8';
-          const targetHours = activeFast.targetHours || parseProtocolTargetHours(protocol);
-          const targetPct = Math.min(100, Math.round((elapsedHours / targetHours) * 100));
-          const isTargetMet = elapsedHours >= targetHours;
-          const targetMs = startMs + targetHours * 3600 * 1000;
-
-          const formatRelativeDateTime = (dateObj: Date) => {
-            const now = new Date();
-            const dMidnight = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()).getTime();
-            const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-            const yesterdayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
-            const tomorrowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
-
-            const hours = String(dateObj.getHours()).padStart(2, '0');
-            const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-            const timeStr = `${hours}:${minutes}`;
-
-            let formattedDate = '';
-            if (dMidnight === todayMidnight) {
-              formattedDate = 'Oggi';
-            } else if (dMidnight === yesterdayMidnight) {
-              formattedDate = 'Ieri';
-            } else if (dMidnight === tomorrowMidnight) {
-              formattedDate = 'Domani';
-            } else {
-              const months = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
-              const day = dateObj.getDate();
-              const month = months[dateObj.getMonth()];
-              formattedDate = `${day} ${month}`;
-            }
-            return `${formattedDate} ${timeStr}`;
-          };
-
-          const startDisplay = formatRelativeDateTime(new Date(startMs));
-          const endDisplay = formatRelativeDateTime(new Date(targetMs));
-
-          const handleOpenFastingEdit = () => {
-            if (!onEditEntry) return;
-
-            const sDate = activeFast.startTime ? getLocalDateString(activeFast.startTime) : todayStr;
-            const sTime = activeFast.startTime ? getLocalTimeString(activeFast.startTime) : '20:00';
-            const proto = activeFast.protocol || '16:8';
-            const targetH = activeFast.targetHours || parseProtocolTargetHours(proto);
-            const { endDate: calcEndDate, endTime: calcEndTime } = calculateFastingEndDateTime(sDate, sTime, targetH);
-
-            // Check if there is an active fasting entry already in entries
-            const existingActiveEntry = entries.find(e => 
-              (e.subTypeId === 'sub_fasting' || (e.subTypeName || '').toLowerCase().includes('digiun') || (e.subTypeName || '').toLowerCase().includes('fasting')) &&
-              (e.fastingIsInProgress || (e.value || '').toLowerCase().includes('in corso'))
-            );
-
-            const entryToEdit: LogEntryItem = existingActiveEntry ? {
-              ...existingActiveEntry,
-              fastingStartDate: sDate,
-              fastingStartTime: sTime,
-              fastingEndDate: calcEndDate,
-              fastingEndTime: calcEndTime,
-              fastingProtocol: proto,
-              fastingTargetHours: targetH,
-              fastingStartGlucose: activeFast.startingGlucose !== undefined ? activeFast.startingGlucose : existingActiveEntry.fastingStartGlucose,
-              fastingIsInProgress: true,
-              date: formatDateToItalian(sDate),
-              time: sTime,
-              note: existingActiveEntry.note || activeFast.note || ''
-            } : {
-              id: 'fast_active_' + Date.now(),
-              subTypeId: 'sub_fasting',
-              subTypeName: 'Digiuno Intermittente',
-              unit: 'ore',
-              value: `In corso (${proto})`,
-              date: formatDateToItalian(sDate),
-              time: sTime,
-              categoryId: 'cat_digiuno',
-              categoryName: 'Digiuno',
-              fastingStartDate: sDate,
-              fastingStartTime: sTime,
-              fastingEndDate: calcEndDate,
-              fastingEndTime: calcEndTime,
-              fastingProtocol: proto,
-              fastingTargetHours: targetH,
-              fastingStartGlucose: activeFast.startingGlucose,
-              fastingIsInProgress: true,
-              note: activeFast.note || '',
-              timestamp: activeFast.startTime ? new Date(activeFast.startTime).getTime() : Date.now()
-            };
-
-            onEditEntry(entryToEdit);
-          };
-
-          return (
-            <div 
-              onClick={handleOpenFastingEdit}
-              className="bg-gradient-to-br from-[#122b2d] via-stone-900 to-[#18232c] text-white p-2.5 rounded-none sm:rounded-xl border border-teal-500/50 shadow-md space-y-1.5 relative overflow-hidden animate-fadeIn cursor-pointer hover:border-teal-400 hover:shadow-teal-900/20 hover:scale-[1.005] transition-all group"
-              title="Clicca per modificare data, ora o piano"
-            >
-              <div className="flex items-center justify-between gap-1.5">
-                <div className="flex items-center space-x-1.5 min-w-0">
-                  <span className="flex h-2 w-2 relative shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
-                  </span>
-                  <div className="flex items-center space-x-1 min-w-0">
-                    <Timer className="w-3.5 h-3.5 text-teal-300 shrink-0" />
-                    <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-teal-200 truncate">
-                      Digiuno in corso
-                    </span>
-                    <span className="hidden sm:inline-flex items-center text-[10px] text-teal-400/80 group-hover:text-teal-300 font-normal pl-1">
-                      <Pencil className="w-2.5 h-2.5 mr-0.5" /> Modifica
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-1.5 shrink-0">
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
-                    isTargetMet
-                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
-                      : 'bg-teal-500/20 border-teal-400 text-teal-300'
-                  }`}>
-                    {isTargetMet ? '✓ Raggiunto' : `${targetPct}% (${targetHours}h)`}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNavigate('reports');
-                    }}
-                    className="text-teal-300 hover:text-teal-100 font-bold text-[10px] underline flex items-center space-x-0.5 cursor-pointer px-1 py-0.5"
-                  >
-                    <span>Report</span>
-                    <ArrowRight className="w-2.5 h-2.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* 3 Box in una singola riga compattissima */}
-              <div className="grid grid-cols-3 gap-1.5 text-xs">
-                {/* Box 1: Inizio */}
-                <div className="bg-black/40 p-1.5 rounded-lg border border-white/10 space-y-0.5 min-w-0 flex flex-col justify-center">
-                  <div className="text-[9px] text-teal-300 font-semibold uppercase flex items-center space-x-1 truncate">
-                    <Calendar className="w-2.5 h-2.5 text-teal-400 shrink-0" />
-                    <span className="truncate">Inizio</span>
-                  </div>
-                  <div className="text-[11px] text-teal-200 font-mono font-bold truncate leading-tight">
-                    {startDisplay}
-                  </div>
-                </div>
-
-                {/* Box 2: Fine Prevista */}
-                <div className="bg-black/40 p-1.5 rounded-lg border border-white/10 space-y-0.5 min-w-0 flex flex-col justify-center">
-                  <div className="text-[9px] text-teal-300 font-semibold uppercase flex items-center space-x-1 truncate">
-                    <Clock className="w-2.5 h-2.5 text-teal-400 shrink-0" />
-                    <span className="truncate">Fine prevista</span>
-                  </div>
-                  <div className="text-[11px] text-teal-200 font-mono font-bold truncate leading-tight">
-                    {endDisplay}
-                  </div>
-                </div>
-
-                {/* Box 3: In corso da + Piano */}
-                <div className="bg-black/40 p-1.5 rounded-lg border border-white/10 space-y-0.5 min-w-0 flex flex-col justify-center">
-                  <div className="text-[9px] text-teal-300 font-semibold uppercase flex items-center space-x-1 truncate">
-                    <Timer className="w-2.5 h-2.5 text-teal-400 shrink-0" />
-                    <span className="truncate">In corso da</span>
-                  </div>
-                  <div className="text-[11px] text-white font-mono font-bold truncate leading-tight flex items-baseline gap-1">
-                    <span className="text-amber-300 truncate">{elapsedText}</span>
-                    <span className="text-[9px] text-teal-300/80 font-normal shrink-0">({protocol})</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
         {/* ============================================================ */}
         {/* COMPACT SUMMARY CARD: ULTIME LETTURE (GLICEMIA E PRESSIONE - 2 COLONNE) */}
         {/* ============================================================ */}
@@ -637,7 +602,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </div>
                 {latestGlucose && (
                   <span className="text-[10px] text-stone-500 dark:text-stone-400 font-mono">
-                    {latestGlucose.time} • {latestGlucose.date.slice(5)}
+                    {formatTime24h(latestGlucose.time)} • {latestGlucose.date.slice(5)}
                   </span>
                 )}
               </div>
@@ -673,7 +638,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
             {/* 2. Latest Blood Pressure Card */}
             <div 
-              onClick={() => latestPressure && onEditEntry ? onEditEntry(latestPressure) : onNavigate('add')}
+              onClick={() => {
+                if (latestPressure && onEditEntry) {
+                  onEditEntry({
+                    ...latestPressure,
+                    systolic: resolvedLatestPressure?.systolic || latestPressure.systolic,
+                    diastolic: resolvedLatestPressure?.diastolic || latestPressure.diastolic,
+                    pulse: resolvedLatestPressure?.pulse || latestPressure.pulse,
+                  });
+                } else {
+                  onNavigate('add');
+                }
+              }}
               className="bg-stone-50 dark:bg-stone-800/70 p-3 rounded-lg border border-stone-200 dark:border-stone-700/80 hover:border-rose-400 dark:hover:border-rose-600 transition-all cursor-pointer group"
             >
               <div className="flex items-center justify-between mb-1">
@@ -687,32 +663,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </div>
                 {latestPressure && (
                   <span className="text-[10px] text-stone-500 dark:text-stone-400 font-mono">
-                    {latestPressure.time} • {latestPressure.date.slice(5)}
+                    {formatTime24h(latestPressure.time)} • {latestPressure.date.slice(5)}
                   </span>
                 )}
               </div>
 
-              {latestPressure ? (
+              {resolvedLatestPressure ? (
                 <div className="flex items-baseline justify-between mt-1">
-                  <div>
-                    <span className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight group-hover:scale-105 transition-transform inline-block">
-                      {latestPressure.value}
+                  <div className="flex items-baseline flex-wrap gap-y-0.5">
+                    <span className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight group-hover:scale-105 transition-transform inline-block whitespace-nowrap">
+                      {resolvedLatestPressure.systolic}/{resolvedLatestPressure.diastolic}
                     </span>
-                    <span className="text-xs text-stone-500 dark:text-stone-400 ml-1 font-medium">
-                      {latestPressure.unit || 'mmHg'}
+                    <span className="text-[11px] text-stone-500 dark:text-stone-400 font-semibold ml-1 mr-2 whitespace-nowrap">
+                      mmHg
+                    </span>
+                    <span className="text-stone-300 dark:text-stone-600 font-bold mr-2 select-none">
+                      -
+                    </span>
+                    <span className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight group-hover:scale-105 transition-transform inline-block whitespace-nowrap">
+                      {resolvedLatestPressure.pulse}
+                    </span>
+                    <span className="text-[11px] text-stone-500 dark:text-stone-400 font-semibold ml-1 whitespace-nowrap">
+                      bpm
                     </span>
                   </div>
 
-                  <div className="flex flex-col items-end space-y-0.5">
-                    {latestPressure.pulse ? (
-                      <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
-                        ♥ {latestPressure.pulse} bpm
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-stone-200/70 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
-                        {latestPressure.categoryName}
-                      </span>
-                    )}
+                  <div className="flex flex-col items-end space-y-0.5 ml-2">
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-stone-200/70 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
+                      {latestPressure?.categoryName || 'Pressione'}
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -769,6 +748,79 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
 
         </div>
+
+        {/* ============================================================ */}
+        {/* COMPACT ACTIVE FASTING BOX (DIGIUNO IN CORSO)               */}
+        {/* ============================================================ */}
+        {hasActiveFast && activeFastInfo && (
+          <div 
+            onClick={() => onNavigate('reports')}
+            className="bg-gradient-to-br from-[#102a2c] via-[#162026] to-[#122329] text-white p-3 sm:p-3.5 rounded-none sm:rounded-xl border border-teal-500/40 shadow-xs space-y-2.5 transition-all hover:border-teal-400 cursor-pointer animate-fadeIn group"
+          >
+            {/* Header: Pulsing status + Progress badge */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500"></span>
+                </span>
+                <div className="flex items-center space-x-1.5">
+                  <Timer className="w-3.5 h-3.5 text-teal-300" />
+                  <span className="text-[11px] font-black uppercase tracking-wider text-teal-200">
+                    Digiuno in Corso
+                  </span>
+                </div>
+              </div>
+
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                activeFastInfo.isTargetMet
+                  ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
+                  : 'bg-teal-500/20 border-teal-400/60 text-teal-300'
+              }`}>
+                {activeFastInfo.isTargetMet ? '✓ Obiettivo raggiunto' : `${activeFastInfo.progressPct}% completato`}
+              </span>
+            </div>
+
+            {/* 3 Compact Info Columns */}
+            <div className="grid grid-cols-3 gap-2 bg-black/40 p-2 sm:p-2.5 rounded-lg border border-white/10 text-xs">
+              {/* Inizio */}
+              <div>
+                <span className="text-[9px] text-teal-300 font-semibold uppercase block leading-tight">Inizio</span>
+                <span className="text-[11px] sm:text-xs font-bold text-white block mt-0.5 leading-tight">
+                  {activeFastInfo.startFormatted}
+                </span>
+              </div>
+
+              {/* Piano */}
+              <div className="text-center border-x border-white/10 px-1">
+                <span className="text-[9px] text-teal-300 font-semibold uppercase block leading-tight">Piano</span>
+                <span className="text-[11px] sm:text-xs font-bold text-teal-200 block mt-0.5 leading-tight font-mono">
+                  {activeFastInfo.protocol}
+                </span>
+                <span className="text-[9px] text-stone-400 block leading-tight">({activeFastInfo.targetHours}h)</span>
+              </div>
+
+              {/* Fine Prevista */}
+              <div className="text-right">
+                <span className="text-[9px] text-teal-300 font-semibold uppercase block leading-tight">Fine Prevista</span>
+                <span className="text-[11px] sm:text-xs font-bold text-amber-300 block mt-0.5 leading-tight font-mono">
+                  {activeFastInfo.targetFormatted}
+                </span>
+              </div>
+            </div>
+
+            {/* Bottom mini bar: elapsed & action */}
+            <div className="flex items-center justify-between text-[11px] text-stone-300 pt-0.5">
+              <div>
+                In corso da: <strong className="text-amber-300 font-mono text-xs">{activeFastInfo.elapsedHours.toFixed(1).replace('.', ',')} ore</strong>
+              </div>
+              <div className="flex items-center space-x-1 text-teal-300 font-semibold group-hover:text-teal-100 transition-colors text-[10px]">
+                <span>Dettagli Report</span>
+                <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ============================================================ */}
         {/* NOTE GIORNALIERE (DIARIO TESTUALE SALVATO NEL DB SQLITE) */}
@@ -871,7 +923,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         </span>
                         <div className="flex items-center space-x-2">
                           <span className="text-[10px] text-stone-400 font-mono">
-                            {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(note.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', hour12: false })}
                           </span>
                           <button
                             type="button"
@@ -979,78 +1031,69 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </button>
               </div>
             ) : (
-              displayedDbEntries.map((entry) => {
-                const isPressure = (entry.subTypeName || '').toLowerCase().includes('pressure') ||
-                                  (entry.subTypeName || '').toLowerCase().includes('pressione') ||
-                                  (entry.subTypeId || '').toLowerCase().includes('bp') ||
-                                  (entry.subTypeId || '').toLowerCase().includes('pulse') ||
-                                  (entry.subTypeName || '').toLowerCase().includes('pulsaz') ||
-                                  (entry.subTypeName || '').toLowerCase().includes('battiti');
-
-                return (
-                  <div 
-                    key={entry.id} 
-                    className="p-3 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors group cursor-pointer"
-                    onClick={() => onEditEntry && onEditEntry(entry)}
-                  >
-                    <div className="space-y-0.5 min-w-0 flex-1">
-                      <div className="flex items-center space-x-2">
-                        {entry.eventNoteIcon && (
-                          <EventNoteIcon id={entry.eventNoteIcon} size="sm" />
-                        )}
-                        <span className="font-bold text-xs text-stone-900 dark:text-stone-100 group-hover:text-[#1d8998] dark:group-hover:text-[#58a1b5] transition-colors">
-                          {entry.subTypeName}
-                        </span>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 rounded">
-                          {entry.categoryName}
-                        </span>
-                        {entry.mealTiming === 'pre' && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 rounded flex items-center space-x-1" title="Pre pasto">
-                            <WholeAppleIcon className="w-3 h-3 text-amber-900 dark:text-amber-300" />
-                            <span>Pre</span>
-                          </span>
-                        )}
-                        {entry.mealTiming === 'post' && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded flex items-center space-x-1" title="Post pasto">
-                            <AppleCoreIcon className="w-3 h-3 text-emerald-900 dark:text-emerald-300" />
-                            <span>Post</span>
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-stone-500 dark:text-stone-400 font-mono">
-                        {entry.date} • {entry.time}
-                        {isPressure && entry.pulse && (
-                          <span className="text-rose-600 dark:text-rose-400 font-semibold ml-2">♥ {entry.pulse} bpm</span>
-                        )}
-                      </div>
-                    </div>
-
+              displayedDbEntries.map((entry) => (
+                <div 
+                  key={entry.id} 
+                  className="p-3 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors group cursor-pointer"
+                  onClick={() => onEditEntry && onEditEntry(entry)}
+                >
+                  <div className="space-y-0.5 min-w-0 flex-1">
                     <div className="flex items-center space-x-2">
-                      <div className="text-right">
-                        <span className="text-base font-bold text-[#1d8998] dark:text-[#38bdf8]">
-                          {entry.value}
+                      {entry.eventNoteIcon && (
+                        <EventNoteIcon id={entry.eventNoteIcon} size="sm" />
+                      )}
+                      <span className="font-bold text-xs text-stone-900 dark:text-stone-100 group-hover:text-[#1d8998] dark:group-hover:text-[#58a1b5] transition-colors">
+                        {entry.subTypeName}
+                      </span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 rounded">
+                        {entry.categoryName}
+                      </span>
+                      {entry.mealTiming === 'pre' && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 rounded flex items-center space-x-1" title="Pre pasto">
+                          <WholeAppleIcon className="w-3 h-3 text-amber-900 dark:text-amber-300" />
+                          <span>Pre</span>
                         </span>
-                        <span className="text-xs text-stone-500 dark:text-stone-400 ml-1">
-                          {entry.unit}
+                      )}
+                      {entry.mealTiming === 'post' && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded flex items-center space-x-1" title="Post pasto">
+                          <AppleCoreIcon className="w-3 h-3 text-emerald-900 dark:text-emerald-300" />
+                          <span>Post</span>
                         </span>
-                      </div>
-                      {onEditEntry && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditEntry(entry);
-                          }}
-                          className="p-1 text-stone-400 hover:text-[#1d8998] dark:hover:text-[#38bdf8] hover:bg-teal-50 dark:hover:bg-stone-800 rounded transition-colors"
-                          title="Modifica lettura"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-stone-500 dark:text-stone-400 font-mono">
+                      {entry.date} • {formatTime24h(entry.time)}
+                      {entry.pulse && (
+                        <span className="text-rose-600 dark:text-rose-400 font-semibold ml-2">♥ {entry.pulse} bpm</span>
                       )}
                     </div>
                   </div>
-                );
-              })
+
+                  <div className="flex items-center space-x-2">
+                    <div className="text-right">
+                      <span className="text-base font-bold text-[#1d8998] dark:text-[#38bdf8]">
+                        {entry.value}
+                      </span>
+                      <span className="text-xs text-stone-500 dark:text-stone-400 ml-1">
+                        {entry.unit}
+                      </span>
+                    </div>
+                    {onEditEntry && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditEntry(entry);
+                        }}
+                        className="p-1 text-stone-400 hover:text-[#1d8998] dark:hover:text-[#38bdf8] hover:bg-teal-50 dark:hover:bg-stone-800 rounded transition-colors"
+                        title="Modifica lettura"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>

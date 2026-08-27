@@ -18,18 +18,7 @@ import {
   clearAllEntriesFromSqlite,
   clearAllBloodRecordsFromSqlite
 } from '../utils/sqliteDb';
-import { 
-  downloadBackupJSON, 
-  downloadCSV, 
-  clearAllEntries, 
-  clearAllBloodTestRecords, 
-  loadUserSettings, 
-  saveUserSettings,
-  saveDailyNotes,
-  saveMedications,
-  saveSavedFastings,
-  saveMealSlots
-} from '../utils/ontrackStorage';
+import { downloadBackupJSON, downloadCSV, clearAllEntries, clearAllBloodTestRecords, loadUserSettings, saveUserSettings } from '../utils/ontrackStorage';
 import { checkAndTriggerScheduledReminder } from '../utils/notifications';
 import { UserSettings } from '../types/ontrack';
 
@@ -239,102 +228,43 @@ export const OnTrackApp: React.FC = () => {
     showToast('SubTypes salvati nel DB SQLite.');
   };
 
-  // Restore Raw .sqlite or JSON File Handler
+  // Restore Raw .sqlite File Handler
   const handleRestoreParsedJsonData = async (parsed: any): Promise<boolean> => {
-    if (!parsed) return false;
+    if (parsed && Array.isArray(parsed.entries)) {
+      const entryCount = parsed.entries.length;
+      const catCount = Array.isArray(parsed.categories) ? parsed.categories.length : 0;
+      const subTypeCount = Array.isArray(parsed.subTypes) ? parsed.subTypes.length : 0;
+      const bloodRecordCount = Array.isArray(parsed.bloodTestRecords) ? parsed.bloodTestRecords.length : 0;
+      const bloodParamCount = Array.isArray(parsed.bloodTestParams) ? parsed.bloodTestParams.length : 0;
+      const totalRecords = entryCount + catCount + subTypeCount + bloodRecordCount + bloodParamCount;
 
-    // Support both standard { entries: [...] } and array of entries, or alternate keys
-    const entriesList = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed.entries)
-      ? parsed.entries
-      : Array.isArray(parsed.log_entries)
-      ? parsed.log_entries
-      : Array.isArray(parsed.readings)
-      ? parsed.readings
-      : null;
+      setEntries(parsed.entries);
+      await saveEntriesToSqlite(parsed.entries);
 
-    let restoredEntriesCount = 0;
-    if (entriesList && Array.isArray(entriesList)) {
-      setEntries(entriesList);
-      await saveEntriesToSqlite(entriesList);
-      restoredEntriesCount = entriesList.length;
-    }
+      if (Array.isArray(parsed.categories)) {
+        setCategories(parsed.categories);
+        await saveCategoriesToSqlite(parsed.categories);
+      }
 
-    let restoredCatsCount = 0;
-    if (Array.isArray(parsed.categories)) {
-      setCategories(parsed.categories);
-      await saveCategoriesToSqlite(parsed.categories);
-      restoredCatsCount = parsed.categories.length;
-    }
+      if (Array.isArray(parsed.subTypes)) {
+        setSubTypes(parsed.subTypes);
+        await saveSubTypesToSqlite(parsed.subTypes);
+      }
 
-    let restoredSubsCount = 0;
-    if (Array.isArray(parsed.subTypes)) {
-      setSubTypes(parsed.subTypes);
-      await saveSubTypesToSqlite(parsed.subTypes);
-      restoredSubsCount = parsed.subTypes.length;
-    }
+      if (Array.isArray(parsed.bloodTestParams)) {
+        setBloodTestParams(parsed.bloodTestParams);
+        await saveBloodParamsToSqlite(parsed.bloodTestParams);
+      }
 
-    const bloodParams = Array.isArray(parsed.bloodTestParams)
-      ? parsed.bloodTestParams
-      : Array.isArray(parsed.blood_test_parameters)
-      ? parsed.blood_test_parameters
-      : null;
-    if (bloodParams) {
-      setBloodTestParams(bloodParams);
-      await saveBloodParamsToSqlite(bloodParams);
-    }
+      if (Array.isArray(parsed.bloodTestRecords)) {
+        setBloodTestRecords(parsed.bloodTestRecords);
+        await saveBloodRecordsToSqlite(parsed.bloodTestRecords);
+      }
 
-    const bloodRecords = Array.isArray(parsed.bloodTestRecords)
-      ? parsed.bloodTestRecords
-      : Array.isArray(parsed.blood_test_records)
-      ? parsed.blood_test_records
-      : null;
-    let restoredBloodCount = 0;
-    if (bloodRecords) {
-      setBloodTestRecords(bloodRecords);
-      await saveBloodRecordsToSqlite(bloodRecords);
-      restoredBloodCount = bloodRecords.length;
-    }
-
-    let restoredNotesCount = 0;
-    if (Array.isArray(parsed.dailyNotes)) {
-      saveDailyNotes(parsed.dailyNotes);
-      restoredNotesCount = parsed.dailyNotes.length;
-    }
-
-    let restoredMedsCount = 0;
-    if (Array.isArray(parsed.medications)) {
-      saveMedications(parsed.medications);
-      restoredMedsCount = parsed.medications.length;
-    }
-
-    if (Array.isArray(parsed.savedFastings)) {
-      saveSavedFastings(parsed.savedFastings);
-    }
-
-    if (Array.isArray(parsed.mealSlots)) {
-      saveMealSlots(parsed.mealSlots);
-    }
-
-    if (parsed.userSettings && typeof parsed.userSettings === 'object') {
-      setUserSettings(parsed.userSettings);
-      saveUserSettings(parsed.userSettings);
-    }
-
-    if (entriesList !== null || bloodRecords !== null || bloodParams !== null || Array.isArray(parsed.categories)) {
-      const parts = [];
-      parts.push(`${restoredEntriesCount} misurazioni`);
-      if (restoredBloodCount > 0) parts.push(`${restoredBloodCount} esami`);
-      if (restoredNotesCount > 0) parts.push(`${restoredNotesCount} note`);
-      if (restoredMedsCount > 0) parts.push(`${restoredMedsCount} farmaci`);
-      if (restoredCatsCount > 0) parts.push(`${restoredCatsCount} categorie`);
-      
-      showToast(`✅ Ripristino completato! ${parts.join(', ')} sincronizzati con successo.`);
+      showToast(`✅ Ripristino completato! ${totalRecords} record totali ripristinati (${entryCount} misurazioni, ${catCount} categorie, ${subTypeCount} sottotipi, ${bloodRecordCount} esami).`);
       setActiveScreen('home');
       return true;
     }
-
     return false;
   };
 
@@ -343,7 +273,7 @@ export const OnTrackApp: React.FC = () => {
       const parsed = JSON.parse(jsonText);
       const success = await handleRestoreParsedJsonData(parsed);
       if (!success) {
-        showToast('❌ Formato dati non valido: nessun dato riconosciuto nel file.');
+        showToast('❌ Formato dati non valido: elenco letture mancante.');
       }
       return success;
     } catch {
@@ -358,15 +288,13 @@ export const OnTrackApp: React.FC = () => {
 
     try {
       if (file.name.endsWith('.sqlite') || file.name.endsWith('.db')) {
-        const res = await loadRawSqliteDbFile(file);
+        await loadRawSqliteDbFile(file);
         await reloadFromSqlite();
-        const parts = [];
-        parts.push(`${res.entriesCount} misurazioni`);
-        if (res.bloodRecordsCount > 0) parts.push(`${res.bloodRecordsCount} esami`);
-        if (res.notesCount > 0) parts.push(`${res.notesCount} note`);
-        if (res.medsCount > 0) parts.push(`${res.medsCount} farmaci`);
-        if (res.categoriesCount > 0) parts.push(`${res.categoriesCount} categorie`);
-        showToast(`✅ Database SQLite caricato! ${parts.join(', ')} ripristinati.`);
+        const loadedEntries = await fetchEntriesFromSqlite();
+        const loadedCategories = await fetchCategoriesFromSqlite();
+        const loadedBlood = await fetchBloodRecordsFromSqlite();
+        const total = loadedEntries.length + loadedCategories.length + loadedBlood.length;
+        showToast(`✅ Database SQLite caricato con successo! ${total} record trattati (${loadedEntries.length} misurazioni, ${loadedCategories.length} categorie, ${loadedBlood.length} esami).`);
         setActiveScreen('home');
       } else if (file.name.endsWith('.json')) {
         const reader = new FileReader();

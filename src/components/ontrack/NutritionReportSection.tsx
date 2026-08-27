@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { LogEntryItem } from '../../types/ontrack';
+import { formatTime24h } from '../../utils/fastingHelpers';
 import {
   Utensils,
   Flame,
@@ -40,7 +41,7 @@ export const NutritionReportSection: React.FC<NutritionReportSectionProps> = ({
 }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  // Parse fields from notes or values
+  // Parse fields from entry direct properties or notes / values
   const parsedRows: ParsedNutritionRow[] = entries.map((e) => {
     const note = e.note || '';
     const calMatch = note.match(/Calorie:\s*([\d.,]+)/i);
@@ -51,20 +52,21 @@ export const NutritionReportSection: React.FC<NutritionReportSectionProps> = ({
     const exerMatch = note.match(/Esercizio:\s*([\d.,]+)/i);
     const netMatch = note.match(/Netto:\s*([\d.,]+)/i);
 
-    const parseNum = (str: string | undefined | null) => {
-      if (!str) return null;
-      const clean = str.replace(',', '.');
+    const parseNum = (str: string | number | undefined | null) => {
+      if (str === undefined || str === null || str === '') return null;
+      if (typeof str === 'number') return isNaN(str) ? null : str;
+      const clean = String(str).replace(',', '.');
       const val = parseFloat(clean);
       return !isNaN(val) ? val : null;
     };
 
-    let calories = calMatch ? parseNum(calMatch[1]) : (e.unit === 'Cal' || e.unit === 'kcal' ? parseNum(e.value) : null);
-    let gda = gdaMatch ? parseNum(gdaMatch[1]) : null;
-    let fats = fatMatch ? parseNum(fatMatch[1]) : null;
-    let proteins = protMatch ? parseNum(protMatch[1]) : null;
-    let carbs = carbMatch ? parseNum(carbMatch[1]) : (e.unit === 'g' ? parseNum(e.value) : null);
-    let exercise = exerMatch ? parseNum(exerMatch[1]) : null;
-    let net = netMatch ? parseNum(netMatch[1]) : null;
+    let calories = parseNum(e.calories) ?? (calMatch ? parseNum(calMatch[1]) : (e.unit === 'Cal' || e.unit === 'kcal' ? parseNum(e.value) : null));
+    let gda = parseNum(e.gda) ?? (gdaMatch ? parseNum(gdaMatch[1]) : null);
+    let fats = parseNum(e.fat) ?? (fatMatch ? parseNum(fatMatch[1]) : null);
+    let proteins = parseNum(e.protein) ?? (protMatch ? parseNum(protMatch[1]) : null);
+    let carbs = parseNum(e.carbs) ?? (carbMatch ? parseNum(carbMatch[1]) : (e.unit === 'g' ? parseNum(e.value) : null));
+    let exercise = parseNum(e.exerciseCal) ?? (exerMatch ? parseNum(exerMatch[1]) : null);
+    let net = parseNum(e.netCal) ?? (netMatch ? parseNum(netMatch[1]) : null);
 
     return {
       entry: e,
@@ -465,7 +467,7 @@ export const NutritionReportSection: React.FC<NutritionReportSectionProps> = ({
                     onClick={() => onEditEntry && onEditEntry(r.entry)}
                   >
                     <td className="p-3 border-r border-white/10 text-[11px]">
-                      {r.entry.date} <span className="text-stone-400 font-semibold">{r.entry.time || '12:00'}</span>
+                      {r.entry.date} <span className="text-stone-400 font-semibold">{formatTime24h(r.entry.time)}</span>
                     </td>
                     <td className="p-3 border-r border-white/10 text-right font-black text-amber-300 text-sm">
                       {r.calories !== null ? r.calories : '-'}

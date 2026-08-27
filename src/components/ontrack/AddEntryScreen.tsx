@@ -9,13 +9,17 @@ import { HealthCategory, HealthSubType, LogEntryItem, ActiveFastingSession, Medi
 import { findCategoryForTime } from '../../utils/timeCategoryMatcher';
 import { saveActiveFasting, addSavedFastingRecord, loadActiveFasting, loadMedications } from '../../utils/ontrackStorage';
 import {
+  FASTING_METABOLIC_LEVELS,
+  getFastingStageByHours,
   FASTING_PROTOCOLS,
   FASTING_PLANS,
   parseProtocolTargetHours,
+  parsePlanTargetHours,
   formatDateToISO,
   formatDateToItalian,
   findNearbyGlucoseForFasting,
-  calculateFastingEndDateTime
+  getLocalDateString,
+  getLocalTimeString
 } from '../../utils/fastingHelpers';
 import {
   Plus,
@@ -34,7 +38,9 @@ import {
   AlertCircle,
   Zap,
   Info,
-  Pill
+  Pill,
+  Utensils,
+  Apple
 } from 'lucide-react';
 
 interface AddEntryScreenProps {
@@ -67,6 +73,14 @@ interface FormBlock {
   note: string;
   mealTiming?: 'pre' | 'post';
   eventNoteIcon?: string;
+  // Food / Nutrition specific fields
+  calories?: string;
+  gda?: string;
+  fat?: string;
+  protein?: string;
+  carbs?: string;
+  exerciseCal?: string;
+  netCal?: string;
   // Fasting specific fields
   fastingMode?: 'active' | 'completed';
   fastingStartDate?: string;
@@ -201,7 +215,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
   // Numeric Keypad State
   const [activeKeypad, setActiveKeypad] = useState<{
     blockId: string;
-    field: 'value' | 'systolic' | 'diastolic' | 'pulse' | 'distance' | 'duration';
+    field: 'value' | 'systolic' | 'diastolic' | 'pulse' | 'distance' | 'duration' | 'calories' | 'gda' | 'fat' | 'protein' | 'carbs' | 'exerciseCal' | 'netCal';
     label: string;
     subLabel?: string;
     unit: string;
@@ -214,21 +228,70 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
   };
 
+  const handleFoodMacroChange = (
+    blockId: string,
+    macros: { fat?: string; protein?: string; carbs?: string; calories?: string; gda?: string; exerciseCal?: string; netCal?: string }
+  ) => {
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return;
+
+    const f = macros.fat !== undefined ? macros.fat : (block.fat || '');
+    const p = macros.protein !== undefined ? macros.protein : (block.protein || '');
+    const c = macros.carbs !== undefined ? macros.carbs : (block.carbs || '');
+    let cal = macros.calories !== undefined ? macros.calories : (block.calories || '');
+    let gdaVal = macros.gda !== undefined ? macros.gda : (block.gda || '');
+    const exer = macros.exerciseCal !== undefined ? macros.exerciseCal : (block.exerciseCal || '');
+    let net = macros.netCal !== undefined ? macros.netCal : (block.netCal || '');
+
+    const fNum = parseFloat(f.replace(',', '.')) || 0;
+    const pNum = parseFloat(p.replace(',', '.')) || 0;
+    const cNum = parseFloat(c.replace(',', '.')) || 0;
+    const exerNum = parseFloat(exer.replace(',', '.')) || 0;
+
+    // Auto-calculate calories if empty or macro updated
+    if (macros.fat !== undefined || macros.protein !== undefined || macros.carbs !== undefined) {
+      if (!cal || cal === '0' || cal === '-') {
+        const calculatedKcal = Math.round((fNum * 9) + (pNum * 4) + (cNum * 4));
+        if (calculatedKcal > 0) {
+          cal = String(calculatedKcal);
+          gdaVal = String(Math.round((calculatedKcal / 1800) * 100));
+        }
+      }
+    }
+
+    const calNum = parseFloat(cal.replace(',', '.')) || 0;
+    if (macros.calories !== undefined && (!gdaVal || gdaVal === '0') && calNum > 0) {
+      gdaVal = String(Math.round((calNum / 1800) * 100));
+    }
+
+    if (!net || net === '-' || macros.calories !== undefined || macros.exerciseCal !== undefined) {
+      if (calNum > 0) {
+        net = String(Math.max(0, Math.round(calNum - exerNum)));
+      }
+    }
+
+    handleUpdateBlock(blockId, {
+      fat: f,
+      protein: p,
+      carbs: c,
+      calories: cal,
+      gda: gdaVal,
+      exerciseCal: exer,
+      netCal: net,
+      value: c || cal || '0'
+    });
+  };
+
   const handleFastingDateOrTimeChange = (blockId: string, newStartDate?: string, newStartTime?: string) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return;
-    const startDate = newStartDate !== undefined ? formatDateToISO(newStartDate) : formatDateToISO(block.fastingStartDate || getISODateYesterday());
+    const startDate = newStartDate !== undefined ? newStartDate : (block.fastingStartDate || getISODateYesterday());
     const startTime = newStartTime !== undefined ? newStartTime : (block.fastingStartTime || '20:00');
 
     const nearby = getNearbyGlucoseForFasting(startDate, startTime);
-    const targetH = block.fastingTargetHours || parseProtocolTargetHours(block.fastingProtocol || '16:8');
-    const calcEnd = calculateFastingEndDateTime(startDate, startTime, targetH);
-
     const updates: Partial<FormBlock> = {
-      ...(newStartDate !== undefined ? { fastingStartDate: startDate } : {}),
+      ...(newStartDate !== undefined ? { fastingStartDate: newStartDate } : {}),
       ...(newStartTime !== undefined ? { fastingStartTime: newStartTime } : {}),
-      fastingEndDate: calcEnd.endDate,
-      fastingEndTime: calcEnd.endTime
     };
 
     // If start glucose is empty or we are changing the date/time, auto-populate if a nearby reading is found
@@ -248,6 +311,8 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
         const dur = activeKeypad.field === 'duration' ? newVal : (block.duration || '');
         handleExerciseChange(activeKeypad.blockId, dist, dur);
       }
+    } else if (['fat', 'protein', 'carbs', 'calories', 'gda', 'exerciseCal', 'netCal'].includes(activeKeypad.field)) {
+      handleFoodMacroChange(activeKeypad.blockId, { [activeKeypad.field]: newVal });
     } else {
       handleUpdateBlock(activeKeypad.blockId, { [activeKeypad.field]: newVal });
     }
@@ -285,6 +350,46 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
         quickIncrements: [-10, -5, 5, 10],
         quickPresets: [15, 20, 30, 45, 60]
       });
+    } else if (activeKeypad.field === 'fat') {
+      setActiveKeypad({
+        blockId: activeKeypad.blockId,
+        field: 'protein',
+        label: 'Proteine (g)',
+        unit: 'g',
+        allowDecimal: true,
+        quickIncrements: [-5, -1, 1, 5],
+        quickPresets: [10, 15, 20, 25, 30]
+      });
+    } else if (activeKeypad.field === 'protein') {
+      setActiveKeypad({
+        blockId: activeKeypad.blockId,
+        field: 'carbs',
+        label: 'Carboidrati (g)',
+        unit: 'g',
+        allowDecimal: true,
+        quickIncrements: [-10, -1, 1, 10],
+        quickPresets: [15, 25, 35, 50, 75]
+      });
+    } else if (activeKeypad.field === 'carbs') {
+      setActiveKeypad({
+        blockId: activeKeypad.blockId,
+        field: 'calories',
+        label: 'Alimenti (Cal)',
+        unit: 'Cal',
+        allowDecimal: false,
+        quickIncrements: [-50, -10, 10, 50],
+        quickPresets: [150, 250, 350, 500, 700]
+      });
+    } else if (activeKeypad.field === 'calories') {
+      setActiveKeypad({
+        blockId: activeKeypad.blockId,
+        field: 'gda',
+        label: '% GDA (Assunzione Giornaliera)',
+        unit: '%',
+        allowDecimal: false,
+        quickIncrements: [-5, -1, 1, 5],
+        quickPresets: [10, 15, 20, 25, 30]
+      });
     } else {
       setActiveKeypad(null);
     }
@@ -300,6 +405,13 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
     if (activeKeypad.field === 'pulse') return block.pulse || '';
     if (activeKeypad.field === 'distance') return block.distance || '';
     if (activeKeypad.field === 'duration') return block.duration || '';
+    if (activeKeypad.field === 'fat') return block.fat || '';
+    if (activeKeypad.field === 'protein') return block.protein || '';
+    if (activeKeypad.field === 'carbs') return block.carbs || '';
+    if (activeKeypad.field === 'calories') return block.calories || '';
+    if (activeKeypad.field === 'gda') return block.gda || '';
+    if (activeKeypad.field === 'exerciseCal') return block.exerciseCal || '';
+    if (activeKeypad.field === 'netCal') return block.netCal || '';
     return '';
   };
 
@@ -402,19 +514,41 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
       const isBP = b.subTypeName.toLowerCase().includes('blood pressure') || b.subTypeName.toLowerCase().includes('pressione') || b.subTypeName.toLowerCase().includes('pulsazion') || b.subTypeName.toLowerCase().includes('battiti') || b.subTypeId.includes('bp') || b.subTypeId.includes('pulse');
       const isExercise = b.subTypeName.toLowerCase().includes('exercise') || b.subTypeName.toLowerCase().includes('esercizio') || b.subTypeName.toLowerCase().includes('camminata');
       const isFasting = b.subTypeName.toLowerCase().includes('digiun') || b.subTypeName.toLowerCase().includes('fasting') || b.subTypeId.includes('fasting');
+      const isFood = b.subTypeName.toLowerCase().includes('cibo') ||
+                     b.subTypeName.toLowerCase().includes('alimenti') ||
+                     b.subTypeName.toLowerCase().includes('carboidrat') ||
+                     b.subTypeName.toLowerCase().includes('food') ||
+                     b.subTypeName.toLowerCase().includes('nutri') ||
+                     b.subTypeId === 'sub_food' ||
+                     b.subTypeId.includes('food');
 
       let finalValue = b.value || '0';
       let entryDate = b.date;
       let entryTime = b.time;
+      let finalNote = b.note || '';
 
       if (isBP) {
-        finalValue = `${b.systolic || '120'}/${b.diastolic || '80'}`;
+        finalValue = `${b.systolic || '120'}/${b.diastolic || '80'}${b.pulse ? ` - ${b.pulse}` : ''}`;
       } else if (isExercise) {
         if (b.distance || b.duration) {
           finalValue = `${b.distance || '0'} km in ${b.duration || '0'} min (${b.speed || '0'} km/h)`;
         } else {
           finalValue = b.value || '30 min';
         }
+      } else if (isFood) {
+        finalValue = b.calories ? `${b.calories} Cal` : (b.carbs ? `${b.carbs}g` : (b.value || '0'));
+        const parts: string[] = [];
+        if (b.calories && b.calories !== '-') parts.push(`Calorie: ${b.calories} Cal`);
+        if (b.gda && b.gda !== '-') parts.push(`% GDA: ${b.gda}%`);
+        if (b.fat && b.fat !== '-') parts.push(`Grassi: ${b.fat}g`);
+        if (b.protein && b.protein !== '-') parts.push(`Proteine: ${b.protein}g`);
+        if (b.carbs && b.carbs !== '-') parts.push(`Carboidrati: ${b.carbs}g`);
+        if (b.exerciseCal && b.exerciseCal !== '-') parts.push(`Esercizio: ${b.exerciseCal}`);
+        if (b.netCal && b.netCal !== '-') parts.push(`Netto: ${b.netCal}`);
+        if (b.note && b.note !== '-' && !b.note.includes('Calorie:') && !b.note.includes('Carboidrati:')) {
+          parts.push(b.note);
+        }
+        finalNote = parts.length > 0 ? parts.join(' | ') : (b.note || '');
       } else if (isFasting) {
         const startISO = `${b.fastingStartDate || getISODateYesterday()}T${b.fastingStartTime || '20:00'}:00`;
         const proto = b.fastingProtocol || '16:8';
@@ -479,30 +613,28 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
         subTypeId: b.subTypeId,
         subTypeName: b.subTypeName,
         value: finalValue,
-        systolic: isBP ? b.systolic : undefined,
-        diastolic: isBP ? b.diastolic : undefined,
-        pulse: isBP ? b.pulse : undefined,
-        distance: isExercise ? b.distance : undefined,
-        duration: isExercise ? b.duration : undefined,
-        speed: isExercise ? b.speed : undefined,
+        systolic: b.systolic,
+        diastolic: b.diastolic,
+        pulse: b.pulse,
+        distance: b.distance,
+        duration: b.duration,
+        speed: b.speed,
+        calories: isFood ? b.calories : undefined,
+        gda: isFood ? b.gda : undefined,
+        fat: isFood ? b.fat : undefined,
+        protein: isFood ? b.protein : undefined,
+        carbs: isFood ? b.carbs : undefined,
+        exerciseCal: isFood ? b.exerciseCal : undefined,
+        netCal: isFood ? b.netCal : undefined,
         unit: b.unit,
         date: entryDate,
         time: entryTime,
         categoryId: b.categoryId,
         categoryName: b.categoryName,
         reminder: b.reminder,
-        note: b.note,
+        note: finalNote,
         mealTiming: b.mealTiming,
         eventNoteIcon: b.eventNoteIcon,
-        fastingStartDate: isFasting ? (b.fastingStartDate || getISODateYesterday()) : undefined,
-        fastingStartTime: isFasting ? (b.fastingStartTime || '20:00') : undefined,
-        fastingEndDate: isFasting ? (b.fastingIsInProgress ? undefined : (b.fastingEndDate || getISODateToday())) : undefined,
-        fastingEndTime: isFasting ? (b.fastingIsInProgress ? undefined : (b.fastingEndTime || getCurrentTimeStr())) : undefined,
-        fastingProtocol: isFasting ? (b.fastingProtocol || '16:8') : undefined,
-        fastingTargetHours: isFasting ? (b.fastingTargetHours || 16) : undefined,
-        fastingStartGlucose: isFasting ? b.fastingStartGlucose : undefined,
-        fastingEndGlucose: isFasting ? b.fastingEndGlucose : undefined,
-        fastingIsInProgress: isFasting ? (b.fastingIsInProgress || b.fastingMode === 'active') : undefined,
         timestamp: Date.now()
       };
     });
@@ -539,6 +671,13 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
           const isExercise = block.subTypeName.toLowerCase().includes('exercise') || block.subTypeName.toLowerCase().includes('esercizio') || block.subTypeName.toLowerCase().includes('camminata');
           const isFasting = block.subTypeName.toLowerCase().includes('digiun') || block.subTypeName.toLowerCase().includes('fasting') || block.subTypeId.includes('fasting');
           const isMedication = block.subTypeName.toLowerCase().includes('farmac') || block.subTypeName.toLowerCase().includes('medication') || block.subTypeName.toLowerCase().includes('medic') || block.subTypeId.includes('med');
+          const isFood = block.subTypeName.toLowerCase().includes('cibo') ||
+                         block.subTypeName.toLowerCase().includes('alimenti') ||
+                         block.subTypeName.toLowerCase().includes('carboidrat') ||
+                         block.subTypeName.toLowerCase().includes('food') ||
+                         block.subTypeName.toLowerCase().includes('nutri') ||
+                         block.subTypeId === 'sub_food' ||
+                         block.subTypeId.includes('food');
 
           // Live calculation for Fasting block
           const fastingStartISO = `${block.fastingStartDate || getISODateYesterday()}T${block.fastingStartTime || '20:00'}:00`;
@@ -559,6 +698,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
           }
 
           const fastingTargetHours = block.fastingTargetHours || 16;
+          const fastingStage = getFastingStageByHours(fastingElapsedHours);
           const fastingTargetPct = Math.min(100, Math.round((fastingElapsedHours / fastingTargetHours) * 100));
           const fastingIsTargetReached = fastingElapsedHours >= fastingTargetHours;
 
@@ -605,6 +745,11 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                   <span className="text-[11px] font-black uppercase tracking-wider bg-[#3b7080]/15 text-[#3b7080] dark:text-[#5aa1b5] border border-[#3b7080]/30 px-3 py-1 rounded-full shrink-0 flex items-center space-x-1">
                     <Pill className="w-3.5 h-3.5" />
                     <span>Farmaci</span>
+                  </span>
+                ) : isFood ? (
+                  <span className="text-[11px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full shrink-0 flex items-center space-x-1">
+                    <Utensils className="w-3.5 h-3.5" />
+                    <span>Cibo / Nutrizione</span>
                   </span>
                 ) : (
                   <span className="text-xs font-bold text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-2.5 py-1 rounded-lg border border-stone-200 dark:border-stone-700 font-mono">
@@ -689,7 +834,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                         <span className="text-[10px] text-stone-500 dark:text-stone-400 block mb-0.5 font-medium">Giorno Inizio </span>
                         <input
                           type="date"
-                          value={formatDateToISO(block.fastingStartDate || getISODateYesterday())}
+                          value={block.fastingStartDate || getISODateYesterday()}
                           onChange={(e) => handleFastingDateOrTimeChange(block.id, e.target.value, undefined)}
                           onFocus={(e) => e.target.select()}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
@@ -739,71 +884,25 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                     </div>
                   </div>
 
-                  {/* 2. Piano & Obiettivo */}
-                  <div className="bg-stone-50 dark:bg-stone-800/60 p-3 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400 font-bold uppercase tracking-wider">
-                        Scelta Rapida Piano
-                      </span>
-                    </div>
-                    {/* Quick Pills */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { id: '14:10', label: '14:10', hours: 14 },
-                        { id: '16:8', label: '16:8', hours: 16 },
-                        { id: '18:6', label: '18:6', hours: 18 },
-                        { id: '20:4', label: '20:4', hours: 20 },
-                        { id: 'OMAD (23:1)', label: 'OMAD (23:1)', hours: 23 },
-                        { id: '24h', label: '24h', hours: 24 },
-                        { id: '36h', label: '36h', hours: 36 }
-                      ].map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            const sDate = block.fastingStartDate || getISODateYesterday();
-                            const sTime = block.fastingStartTime || '20:00';
-                            const calcEnd = calculateFastingEndDateTime(sDate, sTime, p.hours);
-                            handleUpdateBlock(block.id, {
-                              fastingProtocol: p.id,
-                              fastingTargetHours: p.hours,
-                              fastingEndDate: calcEnd.endDate,
-                              fastingEndTime: calcEnd.endTime
-                            });
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            (block.fastingProtocol || '16:8') === p.id
-                              ? 'bg-teal-600 text-white shadow-xs font-black'
-                              : 'bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2.5 pt-1">
+                  {/* 2. Piano e Obiettivo */}
+                  <div className="bg-stone-50 dark:bg-stone-800/60 p-3 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2">
+                    <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <span className="text-[10px] text-stone-500 dark:text-stone-400 block mb-0.5 font-medium">Tutti i Piani</span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400 block mb-0.5 font-medium">Piano Digiuno</span>
                         <select
                           value={block.fastingProtocol || '16:8'}
                           onChange={(e) => {
                             const proto = e.target.value;
-                            const targetH = parseProtocolTargetHours(proto);
-                            const sDate = block.fastingStartDate || getISODateYesterday();
-                            const sTime = block.fastingStartTime || '20:00';
-                            const calcEnd = calculateFastingEndDateTime(sDate, sTime, targetH);
+                            const targetH = parsePlanTargetHours(proto);
                             handleUpdateBlock(block.id, {
                               fastingProtocol: proto,
-                              fastingTargetHours: targetH,
-                              fastingEndDate: calcEnd.endDate,
-                              fastingEndTime: calcEnd.endTime
+                              fastingTargetHours: targetH
                             });
                           }}
                           onFocus={(e) => e.target.select()}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                         >
-                          {FASTING_PROTOCOLS.map(p => (
+                          {FASTING_PLANS.map(p => (
                             <option key={p.id} value={p.id}>
                               {p.label} ({p.hours} ore)
                             </option>
@@ -818,17 +917,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           min="1"
                           max="168"
                           value={block.fastingTargetHours || 16}
-                          onChange={(e) => {
-                            const targetH = parseInt(e.target.value) || 16;
-                            const sDate = block.fastingStartDate || getISODateYesterday();
-                            const sTime = block.fastingStartTime || '20:00';
-                            const calcEnd = calculateFastingEndDateTime(sDate, sTime, targetH);
-                            handleUpdateBlock(block.id, {
-                              fastingTargetHours: targetH,
-                              fastingEndDate: calcEnd.endDate,
-                              fastingEndTime: calcEnd.endTime
-                            });
-                          }}
+                          onChange={(e) => handleUpdateBlock(block.id, { fastingTargetHours: parseInt(e.target.value) || 16 })}
                           onFocus={(e) => e.target.select()}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1d8998] dark:text-[#38bdf8] focus:outline-none focus:ring-2 focus:ring-teal-500"
                         />
@@ -883,7 +972,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           <span className="text-[10px] text-stone-500 dark:text-stone-400 block mb-0.5 font-medium">Giorno Fine </span>
                           <input
                             type="date"
-                            value={formatDateToISO(block.fastingEndDate || getISODateToday())}
+                            value={block.fastingEndDate || getISODateToday()}
                             onChange={(e) => handleUpdateBlock(block.id, { fastingEndDate: e.target.value })}
                             onFocus={(e) => e.target.select()}
                             className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -968,6 +1057,24 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           style={{ width: `${Math.min(100, fastingTargetPct)}%` }}
                         />
                       </div>
+                    </div>
+
+                    {/* Metabolic Stage Badge & Brief Explanation */}
+                    <div className="bg-white/10 p-2.5 rounded-lg border border-white/10 space-y-1">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-teal-500 text-stone-950">
+                          Lv.{fastingStage.level}
+                        </span>
+                        <span className="text-xs font-bold text-white">
+                          {fastingStage.title}
+                        </span>
+                        <span className="text-[10px] text-stone-300 font-mono ml-auto">
+                          ({fastingStage.rangeLabel})
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-200 leading-snug line-clamp-2">
+                        {fastingStage.description}
+                      </p>
                     </div>
                   </div>
 
@@ -1289,6 +1396,302 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           }}
                           onFocus={(e) => e.target.select()}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#3b7080] dark:text-[#5aa1b5] focus:outline-none focus:ring-2 focus:ring-[#3b7080]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : isFood ? (
+                /* FOOD / NUTRITION FORM SECTION */
+                <div className="space-y-3 pt-0.5">
+                  {/* Energy & GDA Badges Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-950/30 dark:via-amber-900/10 rounded-xl border border-amber-500/20">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                        <Utensils className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                          <span>Dati Nutrizionali</span>
+                          {block.calories && (
+                            <span className="text-[11px] font-extrabold text-amber-600 dark:text-amber-400 font-mono">
+                              {block.calories} Cal
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-stone-500 dark:text-stone-400">
+                          {block.gda ? `% GDA: ${block.gda}%` : 'Standard CSV: Alimenti, GDA, Grassi, Proteine, Carboidrati'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const f = parseFloat((block.fat || '').replace(',', '.')) || 0;
+                        const p = parseFloat((block.protein || '').replace(',', '.')) || 0;
+                        const c = parseFloat((block.carbs || '').replace(',', '.')) || 0;
+                        const calcCal = Math.round((f * 9) + (p * 4) + (c * 4));
+                        const calcGda = Math.round((calcCal / 1800) * 100);
+                        const exer = parseFloat((block.exerciseCal || '').replace(',', '.')) || 0;
+                        const net = Math.max(0, Math.round(calcCal - exer));
+                        handleUpdateBlock(block.id, {
+                          calories: String(calcCal),
+                          gda: String(calcGda),
+                          netCal: String(net),
+                          value: String(c || calcCal)
+                        });
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors flex items-center space-x-1 cursor-pointer"
+                      title="Calcola automaticamente Calorie e % GDA dai Macronutrienti (Grassi x 9 + Prot x 4 + Carb x 4)"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-500" />
+                      <span>Calcola da Macro</span>
+                    </button>
+                  </div>
+
+                  {/* 1. Macronutrienti principali (g): Grassi, Proteine, Carboidrati */}
+                  <div className="bg-stone-50 dark:bg-stone-800/60 p-3 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2">
+                    <span className="text-[11px] font-bold text-stone-700 dark:text-stone-300 block uppercase tracking-wider">
+                      Macronutrienti (grammi)
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Grassi */}
+                      <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-stone-200 dark:border-stone-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-orange-600 dark:text-orange-400">
+                            Grassi (g)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setActiveKeypad({
+                              blockId: block.id,
+                              field: 'fat',
+                              label: 'Grassi (g)',
+                              unit: 'g',
+                              allowDecimal: true,
+                              quickIncrements: [-5, -1, 1, 5],
+                              quickPresets: [5, 10, 15, 20, 25]
+                            })}
+                            className="p-0.5 text-stone-400 hover:text-orange-500 rounded cursor-pointer"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={block.fat || ''}
+                          placeholder="es. 17.61"
+                          onChange={(e) => handleFoodMacroChange(block.id, { fat: e.target.value })}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Proteine */}
+                      <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-stone-200 dark:border-stone-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                            Proteine (g)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setActiveKeypad({
+                              blockId: block.id,
+                              field: 'protein',
+                              label: 'Proteine (g)',
+                              unit: 'g',
+                              allowDecimal: true,
+                              quickIncrements: [-5, -1, 1, 5],
+                              quickPresets: [10, 15, 20, 25, 30]
+                            })}
+                            className="p-0.5 text-stone-400 hover:text-indigo-500 rounded cursor-pointer"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={block.protein || ''}
+                          placeholder="es. 18.46"
+                          onChange={(e) => handleFoodMacroChange(block.id, { protein: e.target.value })}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Carboidrati */}
+                      <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-stone-200 dark:border-stone-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-teal-600 dark:text-teal-400">
+                            Carboidrati (g)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setActiveKeypad({
+                              blockId: block.id,
+                              field: 'carbs',
+                              label: 'Carboidrati (g)',
+                              unit: 'g',
+                              allowDecimal: true,
+                              quickIncrements: [-10, -1, 1, 10],
+                              quickPresets: [15, 25, 35, 50, 75]
+                            })}
+                            className="p-0.5 text-stone-400 hover:text-teal-500 rounded cursor-pointer"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={block.carbs || ''}
+                          placeholder="es. 27.81"
+                          onChange={(e) => handleFoodMacroChange(block.id, { carbs: e.target.value })}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Energia & Bilancio: Alimenti (Cal), % GDA, Esercizio (Cal), Netto (Cal) */}
+                  <div className="bg-stone-50 dark:bg-stone-800/60 p-3 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2">
+                    <span className="text-[11px] font-bold text-stone-700 dark:text-stone-300 block uppercase tracking-wider">
+                      Bilancio Energetico & GDA
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {/* Alimenti (Cal) */}
+                      <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-stone-200 dark:border-stone-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-amber-600 dark:text-amber-400 truncate">
+                            Alimenti (Cal)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setActiveKeypad({
+                              blockId: block.id,
+                              field: 'calories',
+                              label: 'Alimenti (Cal)',
+                              unit: 'Cal',
+                              allowDecimal: false,
+                              quickIncrements: [-50, -10, 10, 50],
+                              quickPresets: [150, 250, 350, 500, 700]
+                            })}
+                            className="p-0.5 text-stone-400 hover:text-amber-500 rounded cursor-pointer"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={block.calories || ''}
+                          placeholder="es. 337"
+                          onChange={(e) => handleFoodMacroChange(block.id, { calories: e.target.value })}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
+                        />
+                      </div>
+
+                      {/* % GDA */}
+                      <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-stone-200 dark:border-stone-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-stone-600 dark:text-stone-300 truncate">
+                            % GDA
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setActiveKeypad({
+                              blockId: block.id,
+                              field: 'gda',
+                              label: '% GDA (Assunzione Giornaliera)',
+                              unit: '%',
+                              allowDecimal: false,
+                              quickIncrements: [-5, -1, 1, 5],
+                              quickPresets: [10, 15, 20, 25, 30]
+                            })}
+                            className="p-0.5 text-stone-400 hover:text-stone-600 rounded cursor-pointer"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={block.gda || ''}
+                          placeholder="es. 19"
+                          onChange={(e) => handleFoodMacroChange(block.id, { gda: e.target.value })}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Esercizio (Cal) */}
+                      <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-stone-200 dark:border-stone-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                            Esercizio (Cal)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setActiveKeypad({
+                              blockId: block.id,
+                              field: 'exerciseCal',
+                              label: 'Esercizio Bruciato (Cal)',
+                              unit: 'Cal',
+                              allowDecimal: false,
+                              quickIncrements: [-50, -10, 10, 50],
+                              quickPresets: [50, 100, 200, 300]
+                            })}
+                            className="p-0.5 text-stone-400 hover:text-emerald-500 rounded cursor-pointer"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={block.exerciseCal || ''}
+                          placeholder="es. -"
+                          onChange={(e) => handleFoodMacroChange(block.id, { exerciseCal: e.target.value })}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Netto (Cal) */}
+                      <div className="bg-white dark:bg-stone-900 p-2 rounded-xl border border-stone-200 dark:border-stone-700">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-sky-600 dark:text-sky-400 truncate">
+                            Netto (Cal)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setActiveKeypad({
+                              blockId: block.id,
+                              field: 'netCal',
+                              label: 'Netto Calorie',
+                              unit: 'Cal',
+                              allowDecimal: false,
+                              quickIncrements: [-50, -10, 10, 50],
+                              quickPresets: [150, 250, 350, 500]
+                            })}
+                            className="p-0.5 text-stone-400 hover:text-sky-500 rounded cursor-pointer"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={block.netCal || ''}
+                          placeholder="es. -"
+                          onChange={(e) => handleFoodMacroChange(block.id, { netCal: e.target.value })}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                         />
                       </div>
                     </div>

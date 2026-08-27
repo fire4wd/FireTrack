@@ -128,6 +128,22 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const [showPressureAndPulseInDiary, setShowPressureAndPulseInDiary] = useState<boolean>(true);
   const [exportNotification, setExportNotification] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+  const [activeFasting, setActiveFasting] = useState(() => loadActiveFasting());
+
+  useEffect(() => {
+    const refreshFast = () => {
+      setActiveFasting(loadActiveFasting());
+    };
+    refreshFast();
+    const interval = setInterval(refreshFast, 15000);
+    window.addEventListener('focus', refreshFast);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', refreshFast);
+    };
+  }, []);
+
+  const isFastingActive = Boolean(activeFasting && activeFasting.isActive && activeFasting.startTime);
 
   // Load user settings
   const userSettings = loadUserSettings();
@@ -136,15 +152,12 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const targetMax = userSettings?.targetPostMax || userSettings?.targetPreMax || 150;
   const birthDate = userSettings?.birthDate || '1973-05-07';
 
-  const [activeFastingSession, setActiveFastingSession] = useState(() => loadActiveFasting());
-
   useEffect(() => {
     const current = loadUserSettings();
     if (current && current.patientName) {
       setPatientName(current.patientName);
     }
-    setActiveFastingSession(loadActiveFasting());
-  }, [activeReport]);
+  }, []);
 
   const notifyExport = (msg: string) => {
     setExportNotification(msg);
@@ -845,40 +858,33 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
             {/* Card 7: Digiuno Intermittente */}
             <button
               onClick={() => setActiveReport('fasting')}
-              className={`p-2.5 text-left rounded-xl border transition-all flex flex-col justify-between space-y-1.5 cursor-pointer relative overflow-hidden ${
+              className={`p-2.5 text-left rounded-xl border transition-all flex flex-col justify-between space-y-1.5 cursor-pointer ${
                 activeReport === 'fasting'
                   ? 'bg-teal-50/90 dark:bg-teal-950/40 border-teal-500 ring-2 ring-teal-500/40 shadow-xs'
                   : 'bg-stone-50 dark:bg-stone-900 border-stone-200 dark:border-stone-800 hover:bg-stone-100 dark:hover:bg-stone-800/80'
               }`}
             >
-              <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-1.5">
+                <div className="p-1 bg-teal-600 text-white rounded-lg shrink-0">
+                  <Timer className="w-3.5 h-3.5" />
+                </div>
+                <span className="font-bold text-xs text-stone-800 dark:text-stone-100 truncate">Digiuno</span>
+              </div>
+              {isFastingActive ? (
                 <div className="flex items-center space-x-1.5 min-w-0">
-                  <div className="p-1 bg-teal-600 text-white rounded-lg shrink-0">
-                    <Timer className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="font-bold text-xs text-stone-800 dark:text-stone-100 truncate">Digiuno</span>
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[9px] font-mono font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                    In corso
+                  </span>
                 </div>
-                {/* Visual Indicator: Green if in progress, Gray if not in progress */}
-                <div
-                  className="flex items-center shrink-0 ml-1"
-                  title={activeFastingSession?.isActive ? 'Digiuno in corso' : 'Nessun digiuno attivo'}
-                >
-                  {activeFastingSession?.isActive ? (
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex rounded-full h-2 w-2 bg-stone-300 dark:bg-stone-600"></span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center justify-between w-full text-[9px] font-mono font-bold">
-                <span className={activeFastingSession?.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-500 dark:text-stone-400'}>
-                  {activeFastingSession?.isActive ? 'In corso' : 'Inattivo'}
+              ) : (
+                <span className="text-[9px] font-mono font-bold text-stone-400 dark:text-stone-500">
+                  Inattivo
                 </span>
-                <span className="text-teal-600 dark:text-teal-400 font-semibold">{activeFastingSession?.isActive && activeFastingSession.protocol ? activeFastingSession.protocol : '16:8'}</span>
-              </div>
+              )}
             </button>
 
             {/* Card 8: Diario */}
