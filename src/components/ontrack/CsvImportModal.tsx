@@ -43,9 +43,10 @@ I risultati glicemici\t5 Ago 2026, 07:10\t176\t\tmg/dL\tNo\tPre-pasto\t\t
 I risultati glicemici\t2 Ago 2026, 17:47\t151\t\tmg/dL\tNo\tPre-pasto\t\t
 I risultati glicemici\t2 Ago 2026, 14:54\t200\t\tmg/dL\tNo\tPre-pasto\t\t`;
 
-const SAMPLE_PRESSURE_CSV = `Data,Ora,Tipo,Sistolica/Diastolica - Battiti,Fase Pasto,Pasto,Note
-2026-08-13,07:27,Pressione,118/76 - 70 bpm,Pre pasto,Colazione,Misurazione mattutina
-2026-08-13,19:27,Pressione,122/80 - 74 bpm,Pre pasto,Cena,Dopo lavoro`;
+const SAMPLE_PRESSURE_CSV = `Data\tOra\tTipo\tSistolica\tDiastolica – Battiti\tFase Pasto\tPasto\tNote
+2026-08-29\t07:45\tPressione\t110/76 - 88\tPost pasto\tPranzo\tMisurazione mattutina
+2026-08-28\t12:45\tPressione\t115/79 - 88\tPre pasto\tPranzo\t
+2026-08-27\t18:15\tPressione\t120/79 - 75\tPre pasto\tCena\t`;
 
 const SAMPLE_WEIGHT_CSV = `Data,Ora,Tipo,Peso (kg),Quanto conforme siete stati?
 2026-08-01,12:00,Peso,96.5,Abbastanza buono

@@ -126,7 +126,7 @@ export interface ReminderNotificationSettings {
 
 export interface NextcloudConfig {
   serverUrl: string; // e.g. "https://nc.fire4wd.uk"
-  username: string;  // e.g. "fire"
+  username: string;  // e.g. "admin"
   password?: string; // saved password / app password for seamless sync
   folder: string;    // e.g. "FireTrack"
   autoSyncOnBackup?: boolean;

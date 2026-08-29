@@ -734,7 +734,7 @@ export const BackupRestoreScreen: React.FC<BackupRestoreScreenProps> = ({
                   type="text"
                   value={ncConfig.username}
                   onChange={(e) => setNcConfig({ ...ncConfig, username: e.target.value })}
-                  placeholder="fire"
+                  placeholder="admin"
                   className="w-full px-2.5 py-1.5 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

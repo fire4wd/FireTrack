@@ -30,7 +30,7 @@ export function normalizeNextcloudConfig(config?: Partial<NextcloudConfig>): Nex
   }
   return {
     serverUrl,
-    username: (config?.username || 'fire').trim(),
+    username: (config?.username || 'admin').trim(),
     folder: (config?.folder || 'FireTrack').trim().replace(/^\/+|\/+$/g, ''),
     autoSyncOnBackup: Boolean(config?.autoSyncOnBackup)
   };
@@ -65,7 +65,7 @@ export function getNextcloudUrls(serverUrl: string, username: string, folder: st
   if (!cleanBase.startsWith('http://') && !cleanBase.startsWith('https://')) {
     cleanBase = `https://${cleanBase}`;
   }
-  const cleanUser = (username || 'fire').trim();
+  const cleanUser = (username || 'admin').trim();
   const cleanFolder = (folder || 'FireTrack').trim().replace(/^\/+|\/+$/g, '');
 
   if (cleanBase.includes('/remote.php/')) {
@@ -88,7 +88,7 @@ export function getNextcloudUrls(serverUrl: string, username: string, folder: st
  * Basic Auth Header builder
  */
 export function getBasicAuthHeader(username: string, password?: string): string {
-  const creds = `${username || 'fire'}:${password || ''}`;
+  const creds = `${username || 'admin'}:${password || ''}`;
   try {
     return `Basic ${btoa(unescape(encodeURIComponent(creds)))}`;
   } catch {

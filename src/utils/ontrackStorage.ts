@@ -38,7 +38,7 @@ export const defaultReminderSettings = {
 
 export const defaultNextcloudConfig: NextcloudConfig = {
   serverUrl: 'https://nc.fire4wd.uk',
-  username: 'fire',
+  username: 'admin',
   password: '',
   folder: 'FireTrack',
   autoSyncOnBackup: false
@@ -164,6 +164,9 @@ export const loadUserSettings = (): UserSettings => {
       };
       if (parsed.nextcloud.serverUrl === 'https://100.104.132.47:4443' || parsed.nextcloud.serverUrl === 'http://100.104.132.47:8080') {
         parsed.nextcloud.serverUrl = 'https://nc.fire4wd.uk';
+      }
+      if (parsed.nextcloud.username === 'fire') {
+        parsed.nextcloud.username = 'admin';
       }
     }
     saveUserSettings(parsed);
@@ -458,15 +461,33 @@ export const downloadPressureCSV = (
   const cleanPeriod = periodLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
   const headers = ['Data', 'Ora', 'Sistolica (Max mmHg)', 'Diastolica (Min mmHg)', 'Pulsazioni (bpm)', 'Categoria', 'Note'];
 
-  const rows = entries.map(e => [
-    `"${e.date || ''}"`,
-    `"${e.time || ''}"`,
-    `"${e.systolic || e.value || ''}"`,
-    `"${e.diastolic || ''}"`,
-    `"${e.pulse || ''}"`,
-    `"${e.categoryName || ''}"`,
-    `"${(e.note || '').replace(/"/g, '""')}"`
-  ]);
+  const rows = entries.map(e => {
+    let sys = e.systolic || '';
+    let dia = e.diastolic || '';
+    let pls = e.pulse || '';
+
+    if (!sys && e.value && e.value.includes('/')) {
+      const parts = e.value.split('/');
+      sys = parts[0].trim();
+      if (parts[1]) {
+        const diaParts = parts[1].split(/[-–]/);
+        dia = diaParts[0].trim();
+        if (diaParts[1] && !pls) {
+          pls = diaParts[1].replace(/[^\d]/g, '').trim();
+        }
+      }
+    }
+
+    return [
+      `"${e.date || ''}"`,
+      `"${e.time || ''}"`,
+      `"${sys || e.value || ''}"`,
+      `"${dia || ''}"`,
+      `"${pls || ''}"`,
+      `"${e.categoryName || ''}"`,
+      `"${(e.note || '').replace(/"/g, '""')}"`
+    ];
+  });
 
   const csvContent = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n');
   triggerCsvDownload(csvContent, `Report_Pressione_${cleanPeriod}_${cleanPatient}_${new Date().toISOString().slice(0,10)}.csv`);

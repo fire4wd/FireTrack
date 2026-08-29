@@ -258,6 +258,65 @@ export function parseDateTimeString(
   return null;
 }
 
+export const MEAL_NAMES_REGEX = /^(colazione|prima colazione|pranzo|cena|coricarsi|ora di coricarsi|notte|digiuno|spuntino|merenda|breakfast|lunch|dinner|bedtime|fasting)\b[\s:,-]*(.*)$/i;
+
+/**
+ * Match meal or category text to a configured HealthCategory, or fallback to time window
+ */
+export function findMatchingCategory(
+  categories: HealthCategory[],
+  mealName?: string,
+  formattedTime?: string
+): HealthCategory {
+  if (!categories || categories.length === 0) {
+    return { id: 'cat_1', name: 'Digiuno', order: 1 };
+  }
+
+  if (mealName && mealName.trim()) {
+    const raw = mealName.trim().toLowerCase();
+
+    // 1. Exact match with user categories
+    const exact = categories.find(c => c.name.toLowerCase() === raw);
+    if (exact) return exact;
+
+    // 2. Partial match with user categories
+    const partial = categories.find(c => {
+      const cName = c.name.toLowerCase();
+      return cName.includes(raw) || raw.includes(cName);
+    });
+    if (partial) return partial;
+
+    // 3. Semantic keyword mapping to known categories
+    if (raw.includes('colazion') || raw.includes('breakfast') || raw.includes('mattin')) {
+      const c = categories.find(cat => cat.id === 'cat_breakfast' || cat.name.toLowerCase().includes('colazione'));
+      if (c) return c;
+    }
+    if (raw.includes('pranz') || raw.includes('lunch') || raw.includes('mezzogiorno')) {
+      const c = categories.find(cat => cat.id === 'cat_lunch' || cat.name.toLowerCase().includes('pranzo'));
+      if (c) return c;
+    }
+    if (raw.includes('cena') || raw.includes('dinner') || raw.includes('ser')) {
+      const c = categories.find(cat => cat.id === 'cat_dinner' || cat.name.toLowerCase().includes('cena'));
+      if (c) return c;
+    }
+    if (raw.includes('coric') || raw.includes('letto') || raw.includes('bedtime') || raw.includes('dormire')) {
+      const c = categories.find(cat => cat.id === 'cat_bedtime' || cat.name.toLowerCase().includes('coricarsi'));
+      if (c) return c;
+    }
+    if (raw.includes('nott') || raw.includes('digiun') || raw.includes('fasting') || raw.includes('night')) {
+      const c = categories.find(cat => cat.id === 'cat_night' || cat.name.toLowerCase().includes('notte') || cat.name.toLowerCase().includes('digiuno'));
+      if (c) return c;
+    }
+    if (raw.includes('spuntin') || raw.includes('merenda') || raw.includes('snack')) {
+      const c = categories.find(cat => cat.name.toLowerCase().includes('spuntino') || cat.name.toLowerCase().includes('merenda'));
+      if (c) return c;
+    }
+  }
+
+  // Fallback to configured time-window calculation
+  return findCategoryForTime(categories, formattedTime);
+}
+
 /**
  * Main CSV parse function for health log entries
  * Seamlessly handles:
@@ -505,58 +564,205 @@ export function parseHealthCsv(
     const lowerVal = rawVal.toLowerCase();
     const lowerUnit = rawUnit.toLowerCase();
 
-    // Determine Meal Timing
+    // Determine Meal Timing from header timingIdx
     let mealTiming: 'pre' | 'post' | undefined = undefined;
     const lowerTiming = rawTiming.toLowerCase();
-    if (lowerTiming.includes('post') || lowerTiming.includes('dopo')) {
+    if (/\b(post|dopo)\b/i.test(lowerTiming)) {
       mealTiming = 'post';
-    } else if (lowerTiming.includes('pre') || lowerTiming.includes('prima')) {
+    } else if (/\b(pre|prima)\b/i.test(lowerTiming)) {
       mealTiming = 'pre';
     }
 
     // =======================================================================
     // CASE A: BLOOD PRESSURE (PRESSIONE ARTERIOSA)
-    // Example: "pressione \t 14 Ago 2026, 00:20 \t 94 106 95 mmHg bpm \t Sì \t Post-pasto \t Dolce compleanno"
+    // Supports 1-column ("110/76 - 88", "110/76", "94 106 95"), 2-column, 3-column,
+    // plus "Fase Pasto", "Pasto", and "Note" with attached remarks (e.g. "Pranzo  AIStudiomminkius")
     // =======================================================================
     const isPressureType = lowerType.includes('pressione') || 
                            lowerType.includes('pressure') || 
                            lowerUnit.includes('mmhg') || 
                            lowerVal.includes('mmhg') ||
-                           /^\d{2,3}[\s\/]+\d{2,3}(?:[\s\-]+\d{2,3})?/.test(rawVal.trim());
+                           headerLine.includes('sistolica') ||
+                           headerLine.includes('diastolica') ||
+                           /^\d{2,3}[\s\/]+\d{2,3}/.test(rawVal.trim()) ||
+                           row.some(cell => /pressione/i.test(cell) || /^\d{2,3}[\s\/]+\d{2,3}(?:[\s\-]+\d{2,3})?/.test(cell.trim()));
 
     if (isPressureType) {
-      // Extract numeric components (e.g. 94 106 95 or 120/80 - 75 or 120 80)
-      const numMatches = rawVal.match(/\d+/g);
       let systolic = '';
       let diastolic = '';
       let pulse = '';
+      const usedCols = new Set<number>();
+      if (dateIdx >= 0) usedCols.add(dateIdx);
+      if (timeIdx >= 0) usedCols.add(timeIdx);
+      if (typeIdx >= 0) usedCols.add(typeIdx);
 
-      if (numMatches && numMatches.length >= 2) {
-        const n1 = parseInt(numMatches[0], 10);
-        const n2 = parseInt(numMatches[1], 10);
-        const n3 = numMatches[2] ? parseInt(numMatches[2], 10) : undefined;
+      // Track BP values
+      let bpFound = false;
 
-        // Determine Systolic (higher) vs Diastolic (lower)
-        if (n1 > n2) {
-          systolic = String(n1);
-          diastolic = String(n2);
-        } else {
-          systolic = String(n2);
-          diastolic = String(n1);
+      // 1. Check designated valIdx first if valid
+      if (valIdx >= 0 && row[valIdx]) {
+        const valCell = row[valIdx].trim();
+        const nums = valCell.match(/\d+/g);
+        if (nums && nums.length >= 2) {
+          const n1 = parseInt(nums[0], 10);
+          const n2 = parseInt(nums[1], 10);
+          if (n1 > n2) {
+            systolic = String(n1);
+            diastolic = String(n2);
+          } else {
+            systolic = String(n2);
+            diastolic = String(n1);
+          }
+          if (nums[2]) pulse = nums[2];
+          usedCols.add(valIdx);
+          bpFound = true;
+        } else if (nums && nums.length === 1) {
+          const nextCell = (row[valIdx + 1] || '').trim();
+          const nextNums = nextCell.match(/\d+/g);
+          if (nextNums && nextNums.length >= 1 && !/\b(post|pre|dopo|prima)\b/i.test(nextCell)) {
+            systolic = nums[0];
+            diastolic = nextNums[0];
+            if (nextNums[1]) pulse = nextNums[1];
+            usedCols.add(valIdx);
+            usedCols.add(valIdx + 1);
+            if (!pulse && row[valIdx + 2]) {
+              const pNums = row[valIdx + 2].match(/^\d+$/);
+              if (pNums && parseInt(pNums[0], 10) >= 35 && parseInt(pNums[0], 10) <= 220) {
+                pulse = pNums[0];
+                usedCols.add(valIdx + 2);
+              }
+            }
+            bpFound = true;
+          }
         }
+      }
 
-        if (n3 !== undefined) {
-          pulse = String(n3);
+      // 2. If not found yet from valIdx, scan any cell across the row
+      if (!bpFound) {
+        for (let col = 0; col < row.length; col++) {
+          if (usedCols.has(col)) continue;
+          const cell = row[col].trim();
+          if (/^(pressione|pressure)$/i.test(cell) || cell.toLowerCase().includes('pressione')) {
+            usedCols.add(col);
+            continue;
+          }
+
+          const nums = cell.match(/\d+/g);
+          if (nums && nums.length >= 2) {
+            const n1 = parseInt(nums[0], 10);
+            const n2 = parseInt(nums[1], 10);
+            if (n1 > n2) {
+              systolic = String(n1);
+              diastolic = String(n2);
+            } else {
+              systolic = String(n2);
+              diastolic = String(n1);
+            }
+            if (nums[2]) pulse = nums[2];
+            usedCols.add(col);
+            bpFound = true;
+            break;
+          } else if (nums && nums.length === 1 && !systolic && parseInt(nums[0], 10) >= 50 && parseInt(nums[0], 10) <= 260) {
+            const nextCell = (row[col + 1] || '').trim();
+            const nextNums = nextCell.match(/\d+/g);
+            if (nextNums && nextNums.length >= 1 && !/\b(post|pre|dopo|prima)\b/i.test(nextCell)) {
+              systolic = nums[0];
+              diastolic = nextNums[0];
+              if (nextNums[1]) pulse = nextNums[1];
+              usedCols.add(col);
+              usedCols.add(col + 1);
+              if (!pulse && row[col + 2]) {
+                const pNums = row[col + 2].match(/^\d+$/);
+                if (pNums && parseInt(pNums[0], 10) >= 35 && parseInt(pNums[0], 10) <= 220) {
+                  pulse = pNums[0];
+                  usedCols.add(col + 2);
+                }
+              }
+              bpFound = true;
+              break;
+            }
+          }
         }
-      } else if (numMatches && numMatches.length === 1) {
-        systolic = numMatches[0];
+      }
+
+      // Check if pulse was in a dedicated pulse column
+      const pulseIdx = header.findIndex(h => h.includes('battiti') || h.includes('pulse') || h.includes('bpm'));
+      if (!pulse && pulseIdx >= 0 && row[pulseIdx] && !usedCols.has(pulseIdx)) {
+        const pMatch = row[pulseIdx].match(/\d+/);
+        if (pMatch) {
+          pulse = pMatch[0];
+          usedCols.add(pulseIdx);
+        }
       }
 
       const formattedVal = systolic && diastolic 
         ? `${systolic}/${diastolic}${pulse ? ` - ${pulse} bpm` : ''}` 
         : (systolic || rawVal);
 
-      const matchedCategory = findCategoryForTime(categories, formattedTime);
+      // Now extract meal timing, category/meal name, and notes from remaining cells
+      let rowMealTiming: 'pre' | 'post' | undefined = undefined;
+      let rowMealCategory = '';
+      const noteParts: string[] = [];
+
+      // If the row matches the header length, we can optionally use rawTiming and rawPasto
+      const isShifted = row.length < header.length;
+      if (!isShifted) {
+        if (mealTiming) rowMealTiming = mealTiming;
+        if (rawPasto) {
+          const mealMatch = rawPasto.match(MEAL_NAMES_REGEX);
+          if (mealMatch) {
+            rowMealCategory = mealMatch[1];
+            if (mealMatch[2] && mealMatch[2].trim()) {
+              noteParts.push(mealMatch[2].trim());
+            }
+          } else {
+            rowMealCategory = rawPasto;
+          }
+        }
+        if (rawNote) {
+          noteParts.push(rawNote);
+        }
+      }
+
+      for (let col = 0; col < row.length; col++) {
+        if (usedCols.has(col)) continue;
+        if (!isShifted && (col === timingIdx || col === pastoIdx || col === noteIdx)) continue;
+        const cell = row[col].trim();
+        if (!cell) continue;
+
+        const lower = cell.toLowerCase();
+        if (/^(pressione|pressure|mmhg|bpm)$/i.test(cell) || lower === 'mmhg' || lower === 'bpm' || lower.includes('pressione')) {
+          usedCols.add(col);
+          continue;
+        }
+
+        if (!rowMealTiming && /\b(post|dopo)\b/i.test(lower)) {
+          rowMealTiming = 'post';
+          usedCols.add(col);
+          continue;
+        }
+        if (!rowMealTiming && /\b(pre|prima)\b/i.test(lower)) {
+          rowMealTiming = 'pre';
+          usedCols.add(col);
+          continue;
+        }
+
+        const mealMatch = cell.match(MEAL_NAMES_REGEX);
+        if (mealMatch && !rowMealCategory) {
+          rowMealCategory = mealMatch[1];
+          if (mealMatch[2] && mealMatch[2].trim()) {
+            noteParts.push(mealMatch[2].trim());
+          }
+          usedCols.add(col);
+          continue;
+        }
+
+        noteParts.push(cell);
+        usedCols.add(col);
+      }
+
+      const finalNote = noteParts.filter(Boolean).join(' | ');
+      const matchedCategory = findMatchingCategory(categories, rowMealCategory, formattedTime);
 
       validRows.push({
         id: `bp_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
@@ -570,8 +776,8 @@ export function parseHealthCsv(
         diastolic,
         pulse,
         unit: 'mmHg',
-        mealTiming,
-        note: rawNote,
+        mealTiming: rowMealTiming,
+        note: finalNote,
         categoryId: matchedCategory.id,
         categoryName: matchedCategory.name,
         timestamp: dt.timestamp,
@@ -601,7 +807,7 @@ export function parseHealthCsv(
         continue;
       }
 
-      const matchedCategory = findCategoryForTime(categories, formattedTime);
+      const matchedCategory = findMatchingCategory(categories, rawPasto, formattedTime);
 
       validRows.push({
         id: `weight_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
@@ -644,7 +850,57 @@ export function parseHealthCsv(
       subType = exerciseSubType;
     }
 
-    const matchedCategory = findCategoryForTime(categories, formattedTime);
+    let rowMealTiming: 'pre' | 'post' | undefined = mealTiming;
+    let rowMealCategory = '';
+    const noteParts: string[] = [];
+
+    if (rawPasto) {
+      const mealMatch = rawPasto.match(MEAL_NAMES_REGEX);
+      if (mealMatch) {
+        rowMealCategory = mealMatch[1];
+        if (mealMatch[2] && mealMatch[2].trim()) {
+          noteParts.push(mealMatch[2].trim());
+        }
+      } else {
+        rowMealCategory = rawPasto;
+      }
+    }
+
+    if (rawNote) {
+      noteParts.push(rawNote);
+    }
+
+    // Scan additional unmapped cells for mealTiming, category name, or note content
+    for (let col = 0; col < row.length; col++) {
+      if (col === dateIdx || col === timeIdx || col === valIdx || col === typeIdx || col === unitIdx ||
+          col === timingIdx || col === pastoIdx || col === noteIdx) continue;
+      const cell = row[col].trim();
+      if (!cell) continue;
+
+      const lower = cell.toLowerCase();
+      if (!rowMealTiming && /\b(post|dopo)\b/i.test(lower)) {
+        rowMealTiming = 'post';
+        continue;
+      }
+      if (!rowMealTiming && /\b(pre|prima)\b/i.test(lower)) {
+        rowMealTiming = 'pre';
+        continue;
+      }
+
+      const mealMatch = cell.match(MEAL_NAMES_REGEX);
+      if (mealMatch && !rowMealCategory) {
+        rowMealCategory = mealMatch[1];
+        if (mealMatch[2] && mealMatch[2].trim()) {
+          noteParts.push(mealMatch[2].trim());
+        }
+        continue;
+      }
+
+      noteParts.push(cell);
+    }
+
+    const finalNote = noteParts.filter(Boolean).join(' | ');
+    const matchedCategory = findMatchingCategory(categories, rowMealCategory, formattedTime);
 
     validRows.push({
       id: `csv_import_${dt.timestamp}_${Math.random().toString(36).slice(2, 7)}`,
@@ -655,8 +911,8 @@ export function parseHealthCsv(
       time: formattedTime,
       value: cleanVal,
       unit: rawUnit || subType.unit,
-      mealTiming,
-      note: rawNote,
+      mealTiming: rowMealTiming,
+      note: finalNote,
       categoryId: matchedCategory.id,
       categoryName: matchedCategory.name,
       timestamp: dt.timestamp,

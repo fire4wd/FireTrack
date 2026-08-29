@@ -8,6 +8,7 @@ import { TimePickerModal } from './TimePickerModal';
 import { HealthCategory, HealthSubType, LogEntryItem, ActiveFastingSession, MedicationItem } from '../../types/ontrack';
 import { findCategoryForTime } from '../../utils/timeCategoryMatcher';
 import { saveActiveFasting, addSavedFastingRecord, loadActiveFasting, loadMedications } from '../../utils/ontrackStorage';
+import { safeSelect } from '../../utils/domUtils';
 import {
   FASTING_METABOLIC_LEVELS,
   getFastingStageByHours,
@@ -720,7 +721,6 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                   <select
                     value={block.subTypeId}
                     onChange={(e) => handleSubTypeChange(block.id, e.target.value)}
-                    onFocus={(e) => e.target.select()}
                     className="w-full text-stone-900 dark:text-stone-100 font-extrabold text-base sm:text-lg bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer p-0"
                   >
                     {subTypes.map((st) => (
@@ -836,7 +836,6 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           type="date"
                           value={block.fastingStartDate || getISODateYesterday()}
                           onChange={(e) => handleFastingDateOrTimeChange(block.id, e.target.value, undefined)}
-                          onFocus={(e) => e.target.select()}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                         />
                       </div>
@@ -863,7 +862,6 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                             step="60"
                             value={block.fastingStartTime || '20:00'}
                             onChange={(e) => handleFastingDateOrTimeChange(block.id, undefined, e.target.value)}
-                            onFocus={(e) => e.target.select()}
                             className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                           />
                           <button
@@ -899,7 +897,6 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                               fastingTargetHours: targetH
                             });
                           }}
-                          onFocus={(e) => e.target.select()}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                         >
                           {FASTING_PLANS.map(p => (
@@ -918,7 +915,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           max="168"
                           value={block.fastingTargetHours || 16}
                           onChange={(e) => handleUpdateBlock(block.id, { fastingTargetHours: parseInt(e.target.value) || 16 })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1d8998] dark:text-[#38bdf8] focus:outline-none focus:ring-2 focus:ring-teal-500"
                         />
                       </div>
@@ -974,7 +971,6 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                             type="date"
                             value={block.fastingEndDate || getISODateToday()}
                             onChange={(e) => handleUpdateBlock(block.id, { fastingEndDate: e.target.value })}
-                            onFocus={(e) => e.target.select()}
                             className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
                         </div>
@@ -1001,7 +997,6 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                               step="60"
                               value={block.fastingEndTime || getCurrentTimeStr()}
                               onChange={(e) => handleUpdateBlock(block.id, { fastingEndTime: e.target.value })}
-                              onFocus={(e) => e.target.select()}
                               className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             />
                             <button
@@ -1098,7 +1093,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           placeholder={nearbyGlucose ? `Auto: ${nearbyGlucose.value}` : "Non rilevata (vuoto)"}
                           value={block.fastingStartGlucose || ''}
                           onChange={(e) => handleUpdateBlock(block.id, { fastingStartGlucose: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1d8998] dark:text-[#38bdf8] focus:outline-none focus:ring-2 focus:ring-teal-500"
                         />
                       </div>
@@ -1110,7 +1105,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           placeholder="es. 84"
                           value={block.fastingEndGlucose || ''}
                           onChange={(e) => handleUpdateBlock(block.id, { fastingEndGlucose: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1d8998] dark:text-[#38bdf8] focus:outline-none focus:ring-2 focus:ring-teal-500"
                         />
                       </div>
@@ -1153,8 +1148,8 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           inputMode="numeric"
                           value={block.systolic || '120'}
                           onChange={(e) => handleUpdateBlock(block.id, { systolic: e.target.value })}
-                          onFocus={(e) => e.target.select()}
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                          onFocus={safeSelect}
+                          onClick={safeSelect}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-600 dark:text-rose-400 text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                         <button
@@ -1183,8 +1178,8 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           inputMode="numeric"
                           value={block.diastolic || '80'}
                           onChange={(e) => handleUpdateBlock(block.id, { diastolic: e.target.value })}
-                          onFocus={(e) => e.target.select()}
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                          onFocus={safeSelect}
+                          onClick={safeSelect}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-rose-600 dark:text-rose-400 text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                         <button
@@ -1213,8 +1208,8 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           inputMode="numeric"
                           value={block.pulse || '75'}
                           onChange={(e) => handleUpdateBlock(block.id, { pulse: e.target.value })}
-                          onFocus={(e) => e.target.select()}
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                          onFocus={safeSelect}
+                          onClick={safeSelect}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-stone-800 dark:text-stone-100 text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                         <button
@@ -1248,7 +1243,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                         placeholder="es. 4.5"
                         value={block.distance || ''}
                         onChange={(e) => handleExerciseChange(block.id, e.target.value, block.duration)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={safeSelect}
                         className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-teal-600 dark:text-teal-400 text-center focus:outline-none focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
@@ -1260,7 +1255,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                         placeholder="es. 30"
                         value={block.duration || ''}
                         onChange={(e) => handleExerciseChange(block.id, block.distance, e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={safeSelect}
                         className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-teal-600 dark:text-teal-400 text-center focus:outline-none focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
@@ -1375,7 +1370,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                               value: val
                             });
                           }}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-[#3b7080]"
                         />
                       </div>
@@ -1394,7 +1389,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                               medicationDosage: val
                             });
                           }}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#3b7080] dark:text-[#5aa1b5] focus:outline-none focus:ring-2 focus:ring-[#3b7080]"
                         />
                       </div>
@@ -1484,7 +1479,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           value={block.fat || ''}
                           placeholder="es. 17.61"
                           onChange={(e) => handleFoodMacroChange(block.id, { fat: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                         />
                       </div>
@@ -1517,7 +1512,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           value={block.protein || ''}
                           placeholder="es. 18.46"
                           onChange={(e) => handleFoodMacroChange(block.id, { protein: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                         />
                       </div>
@@ -1550,7 +1545,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           value={block.carbs || ''}
                           placeholder="es. 27.81"
                           onChange={(e) => handleFoodMacroChange(block.id, { carbs: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                         />
                       </div>
@@ -1591,7 +1586,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           value={block.calories || ''}
                           placeholder="es. 337"
                           onChange={(e) => handleFoodMacroChange(block.id, { calories: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                         />
                       </div>
@@ -1624,7 +1619,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           value={block.gda || ''}
                           placeholder="es. 19"
                           onChange={(e) => handleFoodMacroChange(block.id, { gda: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                         />
                       </div>
@@ -1657,7 +1652,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           value={block.exerciseCal || ''}
                           placeholder="es. -"
                           onChange={(e) => handleFoodMacroChange(block.id, { exerciseCal: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                         />
                       </div>
@@ -1690,7 +1685,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           value={block.netCal || ''}
                           placeholder="es. -"
                           onChange={(e) => handleFoodMacroChange(block.id, { netCal: e.target.value })}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={safeSelect}
                           className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                         />
                       </div>
@@ -1714,7 +1709,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                       value={block.value}
                       placeholder="0.0"
                       onChange={(e) => handleUpdateBlock(block.id, { value: e.target.value })}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={safeSelect}
                       className="w-24 text-right text-xl font-extrabold text-[#1d8998] dark:text-[#38bdf8] bg-transparent focus:outline-none font-mono"
                     />
                     <button
@@ -1789,7 +1784,6 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                           const itVal = formatDateToItalian(isoVal);
                           handleUpdateBlock(block.id, { date: itVal });
                         }}
-                        onFocus={(e) => e.target.select()}
                         className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                       />
                     </div>
@@ -1826,7 +1820,6 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                               categoryName: matchedCat.name
                             });
                           }}
-                          onFocus={(e) => e.target.select()}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                         />
                         <button
@@ -1952,7 +1945,7 @@ export const AddEntryScreen: React.FC<AddEntryScreenProps> = ({
                     placeholder={isFasting ? "Note sul digiuno (es. Tisane, idratazione, sensazioni...)" : "Aggiungi Nota"}
                     value={block.note}
                     onChange={(e) => handleUpdateBlock(block.id, { note: e.target.value })}
-                    onFocus={(e) => e.target.select()}
+                    onFocus={safeSelect}
                     className="w-full bg-transparent border-none focus:outline-none focus:ring-0 text-stone-800 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-600 text-xs sm:text-sm font-medium"
                   />
                 </div>

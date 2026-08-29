@@ -135,7 +135,7 @@ Rispondi SEMPRE ed esclusivamente con un oggetto JSON valido strutturato così:
     if (!cleanBase.startsWith("http://") && !cleanBase.startsWith("https://")) {
       cleanBase = `https://${cleanBase}`;
     }
-    const cleanUser = (username || "fire").trim();
+    const cleanUser = (username || "admin").trim();
     const cleanFolder = (folder || "FireTrack").trim().replace(/^\/+|\/+$/g, "");
 
     // If cleanBase already includes WebDAV path, use it directly
@@ -156,7 +156,7 @@ Rispondi SEMPRE ed esclusivamente con un oggetto JSON valido strutturato così:
   };
 
   const getBasicAuthHeader = (username: string, password?: string) => {
-    const creds = `${username || "fire"}:${password || ""}`;
+    const creds = `${username || "admin"}:${password || ""}`;
     return `Basic ${Buffer.from(creds, "utf-8").toString("base64")}`;
   };
 

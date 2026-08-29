@@ -7,6 +7,7 @@ import { NumericKeypadModal } from './NumericKeypadModal';
 import { TimePickerModal } from './TimePickerModal';
 import { formatDateToISO, formatDateToItalian } from '../../utils/fastingHelpers';
 import { findCategoryForTime } from '../../utils/timeCategoryMatcher';
+import { safeSelect } from '../../utils/domUtils';
 import { 
   X, 
   Calendar, 
@@ -450,7 +451,6 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
             <select
               value={subTypeId}
               onChange={(e) => handleSubTypeChange(e.target.value)}
-              onFocus={(e) => e.target.select()}
               className="w-full text-stone-900 dark:text-stone-100 font-extrabold text-base bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 focus:outline-none focus:border-[#1d8998] cursor-pointer"
             >
               {subTypes.map((st) => (
@@ -499,7 +499,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       placeholder="120"
                       value={systolic}
                       onClick={(e) => {
-                        (e.target as HTMLInputElement).select();
+                        safeSelect(e);
                         setActiveKeypad({
                           field: 'systolic',
                           label: 'Pressione Sistolica (Max)',
@@ -509,7 +509,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                           quickPresets: [110, 120, 130, 140]
                         });
                       }}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       onChange={(e) => setSystolic(e.target.value)}
                       className="w-full text-[#1d8998] dark:text-[#38bdf8] text-base font-bold bg-transparent focus:outline-none font-mono cursor-pointer"
                     />
@@ -543,7 +543,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       placeholder="80"
                       value={diastolic}
                       onClick={(e) => {
-                        (e.target as HTMLInputElement).select();
+                        safeSelect(e);
                         setActiveKeypad({
                           field: 'diastolic',
                           label: 'Pressione Diastolica (Min)',
@@ -553,7 +553,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                           quickPresets: [70, 75, 80, 85, 90]
                         });
                       }}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       onChange={(e) => setDiastolic(e.target.value)}
                       className="w-full text-[#1d8998] dark:text-[#38bdf8] text-base font-bold bg-transparent focus:outline-none font-mono cursor-pointer"
                     />
@@ -589,7 +589,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       placeholder="75"
                       value={pulse}
                       onClick={(e) => {
-                        (e.target as HTMLInputElement).select();
+                        safeSelect(e);
                         setActiveKeypad({
                           field: 'pulse',
                           label: 'Pulsazioni / Battiti',
@@ -599,7 +599,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                           quickPresets: [60, 65, 70, 75, 80, 85]
                         });
                       }}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       onChange={(e) => setPulse(e.target.value)}
                       className="w-full text-rose-700 dark:text-rose-400 text-base font-bold bg-transparent focus:outline-none font-mono cursor-pointer"
                     />
@@ -643,7 +643,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       placeholder="0.0"
                       value={distance}
                       onClick={(e) => {
-                        (e.target as HTMLInputElement).select();
+                        safeSelect(e);
                         setActiveKeypad({
                           field: 'distance',
                           label: 'Distanza Percorsa',
@@ -653,7 +653,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                           quickPresets: [1, 2, 3, 5, 10]
                         });
                       }}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       onChange={(e) => setDistance(e.target.value)}
                       className="w-full text-[#1d8998] dark:text-[#38bdf8] text-sm font-bold bg-transparent focus:outline-none font-mono cursor-pointer"
                     />
@@ -688,7 +688,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       placeholder="0"
                       value={duration}
                       onClick={(e) => {
-                        (e.target as HTMLInputElement).select();
+                        safeSelect(e);
                         setActiveKeypad({
                           field: 'duration',
                           label: 'Durata Esercizio',
@@ -698,7 +698,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                           quickPresets: [15, 20, 30, 45, 60]
                         });
                       }}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       onChange={(e) => setDuration(e.target.value)}
                       className="w-full text-[#1d8998] dark:text-[#38bdf8] text-sm font-bold bg-transparent focus:outline-none font-mono cursor-pointer"
                     />
@@ -793,7 +793,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       value={fat}
                       placeholder="es. 17.61"
                       onChange={(e) => handleFoodMacroChange({ fat: e.target.value })}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                     />
                   </div>
@@ -825,7 +825,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       value={protein}
                       placeholder="es. 18.46"
                       onChange={(e) => handleFoodMacroChange({ protein: e.target.value })}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                     />
                   </div>
@@ -857,7 +857,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       value={carbs}
                       placeholder="es. 27.81"
                       onChange={(e) => handleFoodMacroChange({ carbs: e.target.value })}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                     />
                   </div>
@@ -897,7 +897,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       value={calories}
                       placeholder="es. 337"
                       onChange={(e) => handleFoodMacroChange({ calories: e.target.value })}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                     />
                   </div>
@@ -929,7 +929,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       value={gda}
                       placeholder="es. 19"
                       onChange={(e) => handleFoodMacroChange({ gda: e.target.value })}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                     />
                   </div>
@@ -961,7 +961,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       value={exerciseCal}
                       placeholder="es. -"
                       onChange={(e) => handleFoodMacroChange({ exerciseCal: e.target.value })}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                     />
                   </div>
@@ -993,7 +993,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       value={netCal}
                       placeholder="es. -"
                       onChange={(e) => handleFoodMacroChange({ netCal: e.target.value })}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onFocus={safeSelect}
                       className="w-full text-sm font-bold font-mono text-stone-900 dark:text-stone-100 bg-transparent focus:outline-none"
                     />
                   </div>
@@ -1018,7 +1018,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                   inputMode="decimal"
                   value={value}
                   onClick={(e) => {
-                    (e.target as HTMLInputElement).select();
+                    safeSelect(e);
                     setActiveKeypad({
                       field: 'value',
                       label: subTypeName || 'Valore Misurazione',
@@ -1028,7 +1028,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       quickPresets: [80, 100, 120, 140, 160]
                     });
                   }}
-                  onFocus={(e) => (e.target as HTMLInputElement).select()}
+                  onFocus={safeSelect}
                   onChange={(e) => setValue(e.target.value)}
                   placeholder="0.0"
                   className="w-24 text-right text-2xl font-black text-[#1d8998] dark:text-[#38bdf8] bg-transparent focus:outline-none font-mono cursor-pointer"
@@ -1101,7 +1101,6 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                     const itDate = formatDateToItalian(e.target.value);
                     setDate(itDate);
                   }}
-                  onFocus={(e) => (e.target as HTMLInputElement).select()}
                   className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-mono text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                 />
               </div>
@@ -1130,7 +1129,6 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                       setCategoryId(matchedCat.id);
                       setCategoryName(matchedCat.name);
                     }}
-                    onFocus={(e) => (e.target as HTMLInputElement).select()}
                     className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-mono text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
                   />
                   <button
@@ -1170,7 +1168,6 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                   setCategoryName(found.name);
                 }
               }}
-              onFocus={(e) => (e.target as HTMLInputElement).select()}
               className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#1d8998] cursor-pointer"
             >
               {categories.map((c) => (
@@ -1321,8 +1318,8 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
               rows={2}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-              onFocus={(e) => (e.target as HTMLTextAreaElement).select()}
+              onClick={safeSelect}
+              onFocus={safeSelect}
               placeholder="Inserisci eventuali note, dosaggi o sintomi..."
               className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl p-2.5 text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:border-[#1d8998]"
             />

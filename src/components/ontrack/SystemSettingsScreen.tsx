@@ -976,7 +976,7 @@ export const SystemSettingsScreen: React.FC<SystemSettingsScreenProps> = ({
                         ...userSettings,
                         nextcloud: {
                           serverUrl: e.target.value,
-                          username: userSettings.nextcloud?.username || 'fire',
+                          username: userSettings.nextcloud?.username || 'admin',
                           folder: userSettings.nextcloud?.folder || 'FireTrack',
                           autoSyncOnBackup: userSettings.nextcloud?.autoSyncOnBackup || false
                         }
@@ -991,7 +991,7 @@ export const SystemSettingsScreen: React.FC<SystemSettingsScreenProps> = ({
                     </label>
                     <input
                       type="text"
-                      value={userSettings.nextcloud?.username || 'fire'}
+                      value={userSettings.nextcloud?.username || 'admin'}
                       onChange={(e) => setUserSettingsState({
                         ...userSettings,
                         nextcloud: {
@@ -1016,7 +1016,7 @@ export const SystemSettingsScreen: React.FC<SystemSettingsScreenProps> = ({
                         ...userSettings,
                         nextcloud: {
                           serverUrl: userSettings.nextcloud?.serverUrl || 'https://nc.fire4wd.uk',
-                          username: userSettings.nextcloud?.username || 'fire',
+                          username: userSettings.nextcloud?.username || 'admin',
                           folder: e.target.value,
                           autoSyncOnBackup: userSettings.nextcloud?.autoSyncOnBackup || false
                         }

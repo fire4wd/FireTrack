@@ -49,6 +49,7 @@ import {
   FASTING_PLANS,
   parsePlanTargetHours
 } from '../../utils/fastingHelpers';
+import { safeSelect } from '../../utils/domUtils';
 
 export interface FastingReportEntry {
   id: string;
@@ -1927,7 +1928,6 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                       type="date"
                       value={editStartDate}
                       onChange={(e) => setEditStartDate(e.target.value)}
-                      onFocus={(e) => e.target.select()}
                       className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
                       required
                     />
@@ -1940,7 +1940,6 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                       type="time"
                       value={editStartTime}
                       onChange={(e) => setEditStartTime(e.target.value)}
-                      onFocus={(e) => e.target.select()}
                       className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
                       required
                     />
@@ -1987,7 +1986,6 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                         setEditProtocol(proto);
                         setEditTargetHours(parsePlanTargetHours(proto));
                       }}
-                      onFocus={(e) => e.target.select()}
                       className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
                     >
                       <option value="14:10">14:10</option>
@@ -2014,7 +2012,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                       step="0.5"
                       value={editTargetHours}
                       onChange={(e) => setEditTargetHours(parseFloat(e.target.value) || 16)}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={safeSelect}
                       className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
@@ -2070,7 +2068,6 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                           setEditIsInProgress(false);
                         }
                       }}
-                      onFocus={(e) => e.target.select()}
                       placeholder="Lascia vuoto se in corso"
                       className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs disabled:bg-stone-100 dark:disabled:bg-stone-800 disabled:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
@@ -2092,7 +2089,6 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                           setEditIsInProgress(false);
                         }
                       }}
-                      onFocus={(e) => e.target.select()}
                       placeholder="Lascia vuoto se in corso"
                       className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs disabled:bg-stone-100 dark:disabled:bg-stone-800 disabled:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
@@ -2151,7 +2147,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                     type="number"
                     value={editStartingGlucose}
                     onChange={(e) => setEditStartingGlucose(e.target.value)}
-                    onFocus={(e) => e.target.select()}
+                    onFocus={safeSelect}
                     placeholder="Es. 135"
                     className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
@@ -2165,7 +2161,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                     type="number"
                     value={editEndingGlucose}
                     onChange={(e) => setEditEndingGlucose(e.target.value)}
-                    onFocus={(e) => e.target.select()}
+                    onFocus={safeSelect}
                     placeholder="Es. 84"
                     disabled={editIsInProgress}
                     className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs disabled:bg-stone-100 dark:disabled:bg-stone-800 disabled:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -2181,7 +2177,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                 <textarea
                   value={editNote}
                   onChange={(e) => setEditNote(e.target.value)}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={safeSelect}
                   rows={2}
                   placeholder="Es. Assunzione di acqua, tisane, idratazione, sensazioni..."
                   className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -2270,7 +2266,6 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                     type="date"
                     value={finishDate}
                     onChange={(e) => setFinishDate(e.target.value)}
-                    onFocus={(e) => e.target.select()}
                     className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     required
                   />
@@ -2281,7 +2276,6 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                     type="time"
                     value={finishTime}
                     onChange={(e) => setFinishTime(e.target.value)}
-                    onFocus={(e) => e.target.select()}
                     className="w-full p-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     required
                   />
@@ -2316,7 +2310,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                   type="number"
                   value={finishGlucose}
                   onChange={(e) => setFinishGlucose(e.target.value)}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={safeSelect}
                   className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   placeholder="Es. 84"
                 />
@@ -2329,7 +2323,7 @@ export const FastingReportSection: React.FC<FastingReportSectionProps> = ({
                 <textarea
                   value={finishNote}
                   onChange={(e) => setFinishNote(e.target.value)}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={safeSelect}
                   rows={2}
                   placeholder="Es. Insalata con salmone, noci e avocado..."
                   className="w-full p-2.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"

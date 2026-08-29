@@ -2,7 +2,7 @@
 
 ## Configurazione Nextcloud
 - **Server URL predefinito:** `https://nc.fire4wd.uk`
-- **Username predefinito:** `fire`
+- **Username predefinito:** `admin`
 - **Cartella predefinita:** `FireTrack`
 - **Certificato SSL:** Il server Nextcloud è raggiungibile sia con certificato pubblico che autofirmato.
   - Sull'app nativa Android (`CapacitorHttp`), è configurato il bypass del controllo certificato in `patch-capacitor.js`.

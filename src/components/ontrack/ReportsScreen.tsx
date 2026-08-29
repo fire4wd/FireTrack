@@ -346,9 +346,46 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   // Category averages for Pressure/Pulse (Filtered by Period)
   const categoryPressureAverages = categories.map(cat => {
     const catEntries = filteredPressureEntries.filter(e => e.categoryId === cat.id || e.categoryName === cat.name);
-    const systolics = catEntries.map(e => parseFloat(String(e.systolic || e.value || '').split('/')[0].replace(',', '.'))).filter(v => !isNaN(v));
-    const diastolics = catEntries.map(e => parseFloat(String(e.diastolic || e.value || '').split('/')[1] || '0')).filter(v => !isNaN(v) && v > 0);
-    const pulses = catEntries.map(e => parseFloat(String(e.pulse || '').replace(',', '.'))).filter(v => !isNaN(v));
+    const systolics = catEntries.map(e => {
+      if (e.systolic) {
+        const s = parseFloat(String(e.systolic).replace(',', '.'));
+        if (!isNaN(s) && s > 0) return s;
+      }
+      const val = String(e.value || '');
+      if (val.includes('/')) {
+        const s = parseFloat(val.split('/')[0].replace(/[^\d.]/g, ''));
+        if (!isNaN(s) && s > 0) return s;
+      }
+      return NaN;
+    }).filter(v => !isNaN(v));
+
+    const diastolics = catEntries.map(e => {
+      if (e.diastolic) {
+        const d = parseFloat(String(e.diastolic).replace(',', '.'));
+        if (!isNaN(d) && d > 0) return d;
+      }
+      const val = String(e.value || '');
+      if (val.includes('/')) {
+        const diaPart = val.split('/')[1]?.split(/[-–]/)[0];
+        const d = parseFloat(diaPart?.replace(/[^\d.]/g, '') || '');
+        if (!isNaN(d) && d > 0) return d;
+      }
+      return NaN;
+    }).filter(v => !isNaN(v));
+
+    const pulses = catEntries.map(e => {
+      if (e.pulse) {
+        const p = parseFloat(String(e.pulse).replace(',', '.'));
+        if (!isNaN(p) && p > 0) return p;
+      }
+      const val = String(e.value || '');
+      if (val.includes('-') || val.includes('–')) {
+        const afterDash = val.split(/[-–]/)[1];
+        const p = parseFloat(afterDash?.replace(/[^\d.]/g, '') || '');
+        if (!isNaN(p) && p > 0) return p;
+      }
+      return NaN;
+    }).filter(v => !isNaN(v));
 
     const avgSys = systolics.length > 0 ? Math.round(systolics.reduce((a, b) => a + b, 0) / systolics.length) : '-';
     const avgDia = diastolics.length > 0 ? Math.round(diastolics.reduce((a, b) => a + b, 0) / diastolics.length) : '-';
@@ -1320,11 +1357,50 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
             {/* Hero Summary Card */}
             {(() => {
-              const pressureWithSysDia = filteredPressureEntries.filter(e => e.systolic && e.diastolic);
-              const avgSys = pressureWithSysDia.length > 0 ? Math.round(pressureWithSysDia.reduce((a, b) => a + (b.systolic || 0), 0) / pressureWithSysDia.length) : 120;
-              const avgDia = pressureWithSysDia.length > 0 ? Math.round(pressureWithSysDia.reduce((a, b) => a + (b.diastolic || 0), 0) / pressureWithSysDia.length) : 80;
-              const pressureWithPulse = filteredPressureEntries.filter(e => e.pulse && e.pulse > 0);
-              const avgPulse = pressureWithPulse.length > 0 ? Math.round(pressureWithPulse.reduce((a, b) => a + (b.pulse || 0), 0) / pressureWithPulse.length) : 72;
+              const parsedEntries = filteredPressureEntries.map(e => {
+                let sys: number | null = null;
+                let dia: number | null = null;
+                let pls: number | null = null;
+
+                if (e.systolic) {
+                  const s = parseFloat(String(e.systolic).replace(',', '.'));
+                  if (!isNaN(s) && s > 0) sys = s;
+                }
+                if (e.diastolic) {
+                  const d = parseFloat(String(e.diastolic).replace(',', '.'));
+                  if (!isNaN(d) && d > 0) dia = d;
+                }
+                if (e.pulse) {
+                  const p = parseFloat(String(e.pulse).replace(',', '.'));
+                  if (!isNaN(p) && p > 0) pls = p;
+                }
+
+                const val = String(e.value || '');
+                if (sys === null && val.includes('/')) {
+                  const s = parseFloat(val.split('/')[0].replace(/[^\d.]/g, ''));
+                  if (!isNaN(s) && s > 0) sys = s;
+                }
+                if (dia === null && val.includes('/')) {
+                  const diaPart = val.split('/')[1]?.split(/[-–]/)[0];
+                  const d = parseFloat(diaPart?.replace(/[^\d.]/g, '') || '');
+                  if (!isNaN(d) && d > 0) dia = d;
+                }
+                if (pls === null && (val.includes('-') || val.includes('–'))) {
+                  const afterDash = val.split(/[-–]/)[1];
+                  const p = parseFloat(afterDash?.replace(/[^\d.]/g, '') || '');
+                  if (!isNaN(p) && p > 0) pls = p;
+                }
+
+                return { sys, dia, pulse: pls };
+              });
+
+              const validSys = parsedEntries.map(p => p.sys).filter((v): v is number => v !== null && v > 0);
+              const validDia = parsedEntries.map(p => p.dia).filter((v): v is number => v !== null && v > 0);
+              const validPulse = parsedEntries.map(p => p.pulse).filter((v): v is number => v !== null && v > 0);
+
+              const avgSys = validSys.length > 0 ? Math.round(validSys.reduce((a, b) => a + b, 0) / validSys.length) : 120;
+              const avgDia = validDia.length > 0 ? Math.round(validDia.reduce((a, b) => a + b, 0) / validDia.length) : 80;
+              const avgPulse = validPulse.length > 0 ? Math.round(validPulse.reduce((a, b) => a + b, 0) / validPulse.length) : 72;
 
               const isNormal = avgSys <= 129 && avgDia <= 84;
               const isOptimal = avgSys < 120 && avgDia < 80;
